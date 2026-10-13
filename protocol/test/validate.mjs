@@ -58,4 +58,21 @@ function ajvErrors(errs) {
   return (errs || []).slice(0, 6).map((e) => `${e.instancePath || "/"} ${e.message}`).join("; ");
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) run();
+// `node validate.mjs --d2c file.jsonl` validates one message per line (used for firmware test output).
+function runFile(dir, file) {
+  const v = makeValidator();
+  const lines = readFileSync(file, "utf8").split("\n").filter((l) => l.trim());
+  let fail = 0;
+  for (const [i, line] of lines.entries()) {
+    let m;
+    try { m = JSON.parse(line); } catch (e) { fail++; console.log(`FAIL line ${i + 1}: not JSON: ${line.slice(0, 120)}`); continue; }
+    if (!v[dir](m)) { fail++; console.log(`FAIL line ${i + 1}: ${ajvErrors(v[dir].errors)}\n  ${line.slice(0, 160)}`); }
+  }
+  console.log(`${lines.length - fail} of ${lines.length} ${dir} messages valid`);
+  process.exit(fail ? 1 : 0);
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  const i = process.argv.findIndex((a) => a === "--c2d" || a === "--d2c");
+  if (i > 0) runFile(process.argv[i].slice(2), process.argv[i + 1]); else run();
+}
