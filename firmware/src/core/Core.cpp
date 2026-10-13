@@ -30,12 +30,13 @@ void Core::begin(const char* name, Store* store) {
   auth_.begin(store);
   for (auto u : uis_) u->attach(this, store);
   addCap("pin"); addCap("reboot"); addCap("info"); addCap("chart");
+  begun_ = true;
   for (auto t : trs_) t->begin();
 }
 
 Ui& Core::addUi(const char* name) { Ui* u = new Ui(name); u->attach(this, store_); uis_.push_back(u); return *u; }
 Ui* Core::findUi(const char* name) { for (auto u : uis_) if (strcmp(u->name(), name) == 0) return u; return nullptr; }
-void Core::addTransport(Transport* t) { t->attach(this); trs_.push_back(t); }
+void Core::addTransport(Transport* t) { t->attach(this); trs_.push_back(t); if (begun_) t->begin(); }
 void Core::addCap(const char* cap) { if (!hasCap(cap)) caps_.push_back(Str(cap)); }
 void Core::removeCap(const char* cap) { for (size_t i = 0; i < caps_.size(); i++) if (strEq(caps_[i], cap)) { caps_.erase(caps_.begin() + i); return; } }
 bool Core::hasCap(const char* cap) const { for (auto& c : caps_) if (strEq(c, cap)) return true; return false; }
@@ -97,7 +98,7 @@ void Core::onBinary(uint8_t slot, const uint8_t* data, size_t len) {
 void Core::onMessage(uint8_t slot, const char* data, size_t len) {
   Client* c = client(slot);
   if (!c || !c->used) return;
-  if (len > 2048) return sendErr(slot, 2, "message too large");
+  if (len > ESPFACE_MAX_MSG) return sendErr(slot, 2, "message too large");
   JsonDocument d;
   if (deserializeJson(d, data, len) || !d.is<JsonObject>()) return sendErr(slot, 1, "bad json");
   const char* t = d["t"];
@@ -266,6 +267,7 @@ void Core::handleSys(Client& c, void* doc) {
   else if (!strcmp(cmd, "ota.url")) cap = "otaurl";
   else if (!strncmp(cmd, "ota.", 4)) cap = "ota";
   if (cap && !hasCap(cap)) return sendErr(c.slot, 8, "capability not available", cmd);
+  if (!strcmp(cmd, "ota.begin") && c.tr && !c.tr->supportsBinary()) return sendErr(c.slot, 8, "no binary frames on this transport", cmd);
   if (sysHook && sysHook(c.slot, cmd, doc)) return;
   sendErr(c.slot, cap ? 8 : 7, cap ? "capability not available" : "unknown cmd", cmd);
 }

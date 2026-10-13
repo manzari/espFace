@@ -114,6 +114,7 @@ class Core : public UiHost {
   Client clients_[ESPFACE_MAX_CLIENTS];
   std::function<void(const ClientInfo&)> onConnect_, onDisconnect_;
   std::function<void(RebootReason)> onReboot_;
+  bool begun_ = false;
   bool rebootPending_ = false;
   uint32_t rebootAt_ = 0;
   RebootReason rebootReason_ = RebootReason::Sketch;

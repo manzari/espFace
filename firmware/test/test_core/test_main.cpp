@@ -11,6 +11,9 @@
 #include "sys/Ntfy.h"
 #include "sys/Ota.h"
 #include "util/Hmac.h"
+#include "transport/LineFramer.h"
+#include "transport/BleFramer.h"
+#include "transport/StreamTransport.h"
 
 using namespace espface;
 
@@ -28,6 +31,7 @@ struct MemTransport : public Transport {
     return true;
   }
   void close(uint8_t slot) override { closed.push_back(slot); }
+  bool supportsBinary() const override { return true; }   // stands in for the WebSocket transport
   int count(uint8_t slot = 0) { return (int)msgs[slot].size(); }
   JsonDocument last(uint8_t slot = 0) { JsonDocument d; deserializeJson(d, msgs[slot].back()); return d; }
   JsonDocument at(uint8_t slot, int i) { JsonDocument d; deserializeJson(d, msgs[slot][i]); return d; }
@@ -802,6 +806,226 @@ void test_ntfy_rate_limit() {
   TEST_ASSERT_EQUAL(4, n.sent());
 }
 
+// ---- phase 5: streams and BLE framing -------------------------------------------------
+void test_line_framer() {
+  LineFramer lf(16);
+  std::vector<Str> lines; int over = 0;
+  auto feed = [&](const char* s) {
+    for (const char* p = s; *p; p++) { auto r = lf.feed((uint8_t)*p); if (r == LineFramer::Line) lines.push_back(Str(lf.data(), lf.len())); else if (r == LineFramer::Oversize) over++; }
+  };
+  feed("{\"a\":1}\r\n\r\n\n{\"b\":");
+  TEST_ASSERT_EQUAL(1, lines.size());
+  TEST_ASSERT_EQUAL_STRING("{\"a\":1}", lines[0].c_str());
+  feed("2}\n{\"c\":3}\n{\"d\":4}");                          // split and joined deliveries
+  TEST_ASSERT_EQUAL(3, lines.size());
+  TEST_ASSERT_EQUAL_STRING("{\"b\":2}", lines[1].c_str());
+  TEST_ASSERT_EQUAL_STRING("{\"c\":3}", lines[2].c_str());
+  feed("\n");
+  TEST_ASSERT_EQUAL_STRING("{\"d\":4}", lines[3].c_str());
+  TEST_ASSERT_EQUAL(7, lf.len());
+  feed("0123456789abcdef\n");                                // exactly cap: fine
+  TEST_ASSERT_EQUAL(5, lines.size()); TEST_ASSERT_EQUAL(0, over);
+  feed("0123456789abcdefX\n{\"e\":5}\n");                     // one over cap: dropped, reported once, next line intact
+  TEST_ASSERT_EQUAL(1, over);
+  TEST_ASSERT_EQUAL(6, lines.size());
+  TEST_ASSERT_EQUAL_STRING("{\"e\":5}", lines[5].c_str());
+  feed("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n");
+  TEST_ASSERT_EQUAL(2, over); TEST_ASSERT_EQUAL(6, lines.size());
+}
+
+static Str bigMsg(size_t n, char seed) { Str m = "{\"t\":\"x\",\"p\":\""; while (m.length() < n - 2) m += (char)('a' + (seed + m.length()) % 26); m += "\"}"; return m; }
+using Pkts = std::vector<std::vector<uint8_t>>;
+
+// Sends a message through the chunker in FrameSink-sized frames and collects the packets.
+static void chunkMsg(BleChunker& ch, const Str& m, Pkts& pkts) {
+  size_t off = 0;
+  do {
+    size_t take = m.length() - off; if (take > ESPFACE_FRAME_SIZE) take = ESPFACE_FRAME_SIZE;
+    bool last = off + take >= m.length();
+    TEST_ASSERT_TRUE(ch.frame(m.c_str() + off, take, last, [&](const uint8_t* p, size_t n) { pkts.push_back(std::vector<uint8_t>(p, p + n)); return true; }));
+    off += take;
+  } while (off < m.length());
+}
+
+void test_ble_framer_roundtrip_and_mtu() {
+  for (uint16_t mtu : {(uint16_t)23, (uint16_t)185, (uint16_t)512, (uint16_t)1000}) {
+    BleChunker ch(mtu); BleReassembler re;
+    size_t pay = mtu > 512 ? 509 : (size_t)mtu - 3;
+    TEST_ASSERT_EQUAL(pay, ch.payloadMax());
+    int got = 0; size_t maxPkt = 0;
+    for (int i = 0; i < 300; i++) {                                // 300 messages wrap seq several times
+      Str m = bigMsg(10 + (i * 37) % 1900, (char)i);
+      Pkts pkts; chunkMsg(ch, m, pkts);
+      TEST_ASSERT_EQUAL((m.length() + pay - 1) / pay, pkts.size());
+      TEST_ASSERT_TRUE(pkts.front()[1] & BLE_FLAG_FIRST);
+      TEST_ASSERT_TRUE(pkts.back()[1] & BLE_FLAG_LAST);
+      for (size_t k = 0; k < pkts.size(); k++) {
+        if (pkts[k].size() > maxPkt) maxPkt = pkts[k].size();
+        if (k) TEST_ASSERT_EQUAL((uint8_t)(pkts[k - 1][0] + 1), pkts[k][0]);
+        auto r = re.feed(pkts[k].data(), pkts[k].size());
+        if (k + 1 < pkts.size()) { TEST_ASSERT_EQUAL(BleReassembler::None, r); TEST_ASSERT_TRUE(re.partial()); }
+        else { TEST_ASSERT_EQUAL(BleReassembler::Message, r); TEST_ASSERT_EQUAL(m.length(), re.len()); TEST_ASSERT_EQUAL_STRING(m.c_str(), re.data()); got++; }
+      }
+    }
+    TEST_ASSERT_EQUAL(300, got);
+    TEST_ASSERT_EQUAL(pay + 2, maxPkt);
+  }
+  // a message delivered in several small frames fills packets across frame boundaries
+  BleChunker ch(103); Pkts pkts;
+  auto collect = [&](const uint8_t* p, size_t n) { pkts.push_back(std::vector<uint8_t>(p, p + n)); return true; };
+  for (int i = 0; i < 10; i++) ch.frame("0123456789", 10, i == 9, collect);
+  TEST_ASSERT_EQUAL(1, pkts.size()); TEST_ASSERT_EQUAL(102, pkts[0].size());
+  TEST_ASSERT_EQUAL(BLE_FLAG_FIRST | BLE_FLAG_LAST, pkts[0][1]);
+  pkts.clear();
+  for (int i = 0; i < 11; i++) ch.frame("0123456789", 10, i == 10, collect);
+  TEST_ASSERT_EQUAL(2, pkts.size()); TEST_ASSERT_EQUAL(102, pkts[0].size()); TEST_ASSERT_EQUAL(12, pkts[1].size());
+  TEST_ASSERT_EQUAL(BLE_FLAG_FIRST, pkts[0][1]); TEST_ASSERT_EQUAL(BLE_FLAG_LAST, pkts[1][1]);
+  TEST_ASSERT_FALSE(ch.frame("abc", 3, true, [](const uint8_t*, size_t) { return false; }));   // emit failure aborts
+}
+
+void test_ble_framer_gap_duplicate_oversize() {
+  BleChunker ch(23); BleReassembler re(100);
+  Str m = bigMsg(60, 1);
+  Pkts pkts; chunkMsg(ch, m, pkts);
+  TEST_ASSERT_EQUAL(3, pkts.size());
+  auto feed = [&](Pkts& p, size_t k) { return re.feed(p[k].data(), p[k].size()); };
+  // gap: second packet lost -> third reports Dropped, partial gone
+  TEST_ASSERT_EQUAL(BleReassembler::None, feed(pkts, 0));
+  TEST_ASSERT_EQUAL(BleReassembler::Dropped, feed(pkts, 2));
+  TEST_ASSERT_FALSE(re.partial());
+  TEST_ASSERT_EQUAL(BleReassembler::Dropped, feed(pkts, 1));           // stray continuation without a start
+  // duplicates are ignored, the message still completes
+  TEST_ASSERT_EQUAL(BleReassembler::None, feed(pkts, 0));
+  TEST_ASSERT_EQUAL(BleReassembler::None, feed(pkts, 0));
+  TEST_ASSERT_EQUAL(BleReassembler::None, feed(pkts, 1));
+  TEST_ASSERT_EQUAL(BleReassembler::None, feed(pkts, 1));
+  TEST_ASSERT_EQUAL(BleReassembler::Message, feed(pkts, 2));
+  TEST_ASSERT_EQUAL_STRING(m.c_str(), re.data());
+  // out of order (2 before 1) drops the message; a fresh start recovers
+  TEST_ASSERT_EQUAL(BleReassembler::None, feed(pkts, 0));
+  TEST_ASSERT_EQUAL(BleReassembler::Dropped, feed(pkts, 2));
+  TEST_ASSERT_EQUAL(BleReassembler::Dropped, feed(pkts, 1));
+  for (size_t k = 0; k < 3; k++) feed(pkts, k);
+  TEST_ASSERT_EQUAL_STRING(m.c_str(), re.data());
+  // oversize: reported once at the overflowing chunk, the rest of that message is skipped, the next one is intact
+  Str big = bigMsg(150, 2); Pkts bp; chunkMsg(ch, big, bp);
+  TEST_ASSERT_EQUAL(8, bp.size());
+  int over = 0, none = 0;
+  for (size_t k = 0; k < bp.size(); k++) { auto r = feed(bp, k); if (r == BleReassembler::Oversize) over++; else if (r == BleReassembler::None) none++; }
+  TEST_ASSERT_EQUAL(1, over); TEST_ASSERT_EQUAL(7, none);
+  pkts.clear(); chunkMsg(ch, m, pkts);
+  for (size_t k = 0; k < 3; k++) feed(pkts, k);
+  TEST_ASSERT_EQUAL_STRING(m.c_str(), re.data());
+  // seq wrap inside one message
+  BleChunker w(23); BleReassembler wr(8192);
+  Str wide = bigMsg(20 * 260, 3); Pkts wp; chunkMsg(w, wide, wp);
+  TEST_ASSERT_EQUAL(260, wp.size());
+  TEST_ASSERT_EQUAL(wp[0][0], wp[256][0]);
+  BleReassembler::Result last = BleReassembler::None;
+  for (auto& p : wp) last = wr.feed(p.data(), p.size());
+  TEST_ASSERT_EQUAL(BleReassembler::Message, last);
+  TEST_ASSERT_EQUAL(wide.length(), wr.len());
+  TEST_ASSERT_EQUAL(BleReassembler::Dropped, wr.feed(wp[0].data(), 1));   // runt packet
+}
+
+// Fake Arduino Stream: the test writes client lines into rx, device output lands in lines.
+struct FakeStream : public StreamIo {
+  std::vector<uint8_t> rx; size_t pos = 0; Str tx; std::vector<Str> lines;
+  int available() override { return (int)(rx.size() - pos); }
+  int read() override { return pos < rx.size() ? rx[pos++] : -1; }
+  size_t write(const uint8_t* d, size_t n) override {
+    for (size_t i = 0; i < n; i++) { if (d[i] == '\n') { lines.push_back(tx); if (g_out) fprintf(g_out, "%s\n", tx.c_str()); tx = ""; } else tx += (char)d[i]; }
+    return n;
+  }
+  void push(const char* s) { rx.insert(rx.end(), (const uint8_t*)s, (const uint8_t*)s + strlen(s)); }
+  JsonDocument last() { JsonDocument d; deserializeJson(d, lines.back()); return d; }
+  JsonDocument at(int i) { JsonDocument d; deserializeJson(d, lines[i]); return d; }
+  int find(const char* needle, int from = 0) { for (int i = from; i < (int)lines.size(); i++) if (strstr(lines[i].c_str(), needle)) return i; return -1; }
+};
+
+struct StreamRig {
+  MemStore store; FakeStream io; StreamTransport tr; Core core;
+  StreamRig(const char* pin = nullptr) : tr(io, "serial") {
+    core.setId("a1b2c3").setVersion("1.0.0");
+    core.begin("Test", &store);
+    core.addTransport(&tr);               // added after begin: started immediately
+    if (pin) core.setPin(pin, true);
+  }
+  void send(const char* line) { io.push(line); core.loop(); }
+};
+
+void test_stream_transport_end_to_end() {
+  StreamRig r("1234");
+  r.core.ui().gauge("temp", "T", 0, 100); r.core.ui().sw("pump", "Pump");
+  TEST_ASSERT_FALSE(r.tr.open());
+  r.send("\r\n\n");                                   // noise does not open a session
+  TEST_ASSERT_FALSE(r.tr.open()); TEST_ASSERT_EQUAL(0, r.io.lines.size());
+  r.send("{\"t\":\"hello\",\"v\":1,\"client\":\"app\"}\r\n");
+  TEST_ASSERT_TRUE(r.tr.open());
+  JsonDocument h = r.io.last();
+  TEST_ASSERT_EQUAL_STRING("hello", h["t"]); TEST_ASSERT_FALSE(h["ok"].as<bool>()); TEST_ASSERT_EQUAL_STRING("pin", h["auth"]);
+  char mac[65]; pinMac("1234", h["nonce"], "a1b2c3", mac);
+  Str a = "{\"t\":\"auth\",\"mac\":\""; a += mac; a += "\"}\n"; r.send(a.c_str());
+  int ai = r.io.find("\"t\":\"auth\""); TEST_ASSERT_TRUE(ai >= 0);
+  TEST_ASSERT_TRUE(r.io.at(ai)["ok"].as<bool>());
+  TEST_ASSERT_EQUAL_STRING("ui", r.io.at(ai + 1)["t"]); TEST_ASSERT_EQUAL_STRING("upd", r.io.at(ai + 2)["t"]);
+  TEST_ASSERT_EQUAL(1, r.core.clients());
+  TEST_ASSERT_EQUAL_STRING("serial", r.core.client((uint8_t)r.tr.slot())->tr->name());
+  // set in two deliveries, then the flush pushes the new value as one line
+  r.send("{\"t\":\"set\",\"id\":\"pu"); r.send("mp\",\"v\":true}\n");
+  TEST_ASSERT_TRUE(r.core.ui().get("pump")->asBool());
+  r.core.client((uint8_t)r.tr.slot())->lastFlush -= 1000; r.core.ui().set("temp", 42.5f); r.core.loop();
+  TEST_ASSERT_EQUAL_STRING("upd", r.io.last()["t"]); TEST_ASSERT_EQUAL_FLOAT(42.5f, r.io.last()["v"]["temp"].as<float>());
+  TEST_ASSERT_EQUAL(0, r.io.tx.length());                     // every message ends with a newline
+  // oversize line -> err 2, session intact; then two joined lines in one delivery
+  Str big = "{\"t\":\"set\",\"id\":\"pump\",\"v\":\""; while (big.length() < ESPFACE_MAX_MSG + 10) big += "x"; big += "\"}\n";
+  r.send(big.c_str());
+  TEST_ASSERT_EQUAL(2, r.io.last()["code"].as<int>());
+  r.send("{\"t\":\"set\",\"id\":\"pump\",\"v\":false}\n{\"t\":\"set\",\"id\":\"nope\",\"v\":1}\n");
+  TEST_ASSERT_FALSE(r.core.ui().get("pump")->asBool());
+  TEST_ASSERT_EQUAL(6, r.io.last()["code"].as<int>());
+  // a new hello on the same wire restarts the session: not authenticated any more
+  int before = (int)r.io.lines.size();
+  r.send("{\"t\":\"hello\",\"v\":1,\"client\":\"app\"}\n");
+  TEST_ASSERT_EQUAL(before + 1, (int)r.io.lines.size());
+  TEST_ASSERT_FALSE(r.io.last()["ok"].as<bool>()); TEST_ASSERT_EQUAL(0, r.core.clients());
+  r.send("{\"t\":\"set\",\"id\":\"pump\",\"v\":true}\n");
+  TEST_ASSERT_EQUAL(3, r.io.last()["code"].as<int>());
+  // a close requested by the core is applied in the next loop
+  r.tr.close((uint8_t)r.tr.slot()); TEST_ASSERT_TRUE(r.tr.open()); r.core.loop(); TEST_ASSERT_FALSE(r.tr.open());
+  // idle timeout
+  r.tr.setIdleTimeout(1);
+  r.send("{\"t\":\"hello\",\"v\":1,\"client\":\"app\"}\n"); TEST_ASSERT_TRUE(r.tr.open());
+  uint32_t t0 = nowMs(); while (nowMs() - t0 < 3) {}
+  r.core.loop(); TEST_ASSERT_FALSE(r.tr.open());
+  r.tr.setIdleTimeout(0);
+  // open on begin, and too-many-clients as a raw err line when no slot is free
+  FakeStream io2; StreamTransport t2(io2, "uart"); t2.setOpenOnBegin(true); r.core.addTransport(&t2);
+  TEST_ASSERT_TRUE(t2.open());
+  for (int i = 0; i < ESPFACE_MAX_CLIENTS - 1; i++) r.core.onOpen(&r.tr);
+  r.send("{\"t\":\"hello\",\"v\":1,\"client\":\"app\"}\n");
+  TEST_ASSERT_FALSE(r.tr.open()); TEST_ASSERT_EQUAL(9, r.io.last()["code"].as<int>());
+}
+
+void test_ota_begin_refused_on_stream() {
+  StreamRig r; MockUpdate upd; Ota ota; Str seen;
+  ota.begin(&r.core, &upd, &r.store);
+  r.core.sysHook = [&](uint8_t slot, const char* cmd, void* doc) { return ota.handleSys(slot, cmd, doc); };
+  ota.urlFetch = [&](const char* url) { seen = url; return true; };
+  r.core.addCap("ota"); r.core.addCap("otaurl");
+  r.send("{\"t\":\"hello\",\"v\":1,\"client\":\"app\"}\n");
+  TEST_ASSERT_EQUAL_STRING("upd", r.io.last()["t"]);
+  r.send("{\"t\":\"sys\",\"cmd\":\"ota.begin\",\"size\":10,\"md5\":\"0123456789abcdef0123456789abcdef\"}\n");
+  TEST_ASSERT_EQUAL_STRING("err", r.io.last()["t"]);
+  TEST_ASSERT_EQUAL(8, r.io.last()["code"].as<int>()); TEST_ASSERT_EQUAL_STRING("ota.begin", r.io.last()["ref"]);
+  TEST_ASSERT_FALSE(ota.busy());
+  r.send("{\"t\":\"sys\",\"cmd\":\"ota.url\",\"url\":\"http://x/fw.bin\"}\n");
+  TEST_ASSERT_EQUAL_STRING("http://x/fw.bin", seen.c_str());
+  TEST_ASSERT_EQUAL_STRING("ota.url", r.io.last()["cmd"]); TEST_ASSERT_TRUE(r.io.last()["ok"].as<bool>());
+  r.send("{\"t\":\"sys\",\"cmd\":\"ota.abort\"}\n");
+  TEST_ASSERT_TRUE(r.io.last()["ok"].as<bool>());
+}
+
 int main() {
   mkdir("test_output", 0755);
   g_out = fopen("test_output/d2c.jsonl", "w");
@@ -830,6 +1054,11 @@ int main() {
   RUN_TEST(test_reset_reason_mapping);
   RUN_TEST(test_info_fields);
   RUN_TEST(test_ntfy_rate_limit);
+  RUN_TEST(test_line_framer);
+  RUN_TEST(test_ble_framer_roundtrip_and_mtu);
+  RUN_TEST(test_ble_framer_gap_duplicate_oversize);
+  RUN_TEST(test_stream_transport_end_to_end);
+  RUN_TEST(test_ota_begin_refused_on_stream);
   if (g_out) fclose(g_out);
   return UNITY_END();
 }
