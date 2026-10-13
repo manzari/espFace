@@ -49,6 +49,7 @@ class Core : public UiHost {
   Ui* findUi(const char* name);
   void addTransport(Transport* t);
   void addCap(const char* cap);
+  void removeCap(const char* cap);
   bool hasCap(const char* cap) const;
 
   // transport entry points (called from loop context)
@@ -65,6 +66,7 @@ class Core : public UiHost {
   void onDisconnect(std::function<void(const ClientInfo&)> fn) { onDisconnect_ = fn; }
   void onReboot(std::function<void(RebootReason)> fn) { onReboot_ = fn; }
   void requestReboot(RebootReason r, uint32_t delayMs = 500);
+  bool rebootPending() const { return rebootPending_; }
   uint32_t time() const;                      // unix seconds or 0
   int16_t tz() const { return tz_; }
   void setTime(uint32_t unix, bool authoritative = true);
@@ -76,6 +78,7 @@ class Core : public UiHost {
   std::function<bool(uint8_t slot, const char* cmd, void* jsonDoc)> sysHook; // wifi.*, ota.*; return true if handled
   std::function<void()> rebootFn;
   std::function<bool(uint8_t slot, const uint8_t* data, size_t len)> binaryHook;
+  std::function<void(uint8_t slot)> closeHook;                                // a client left (before its slot is freed)
 
   // UiHost
   void uiBroadcast(Ui& ui, const std::function<void(JsonWriter&)>& fill) override;

@@ -71,6 +71,21 @@ Common chain modifiers: `.group(id)`, `.page(id)`, `.row(id)`, `.size(w, h=0)`, 
 | `face.ui().rebuild()` | resend the UI after structural changes |
 | `face.time()` / `face.setTime(unix)` | unix time from NTP, the client clock or an RTC |
 
+## System features (`sys` pages, capability-gated)
+
+| Call | Effect | cap |
+|---|---|---|
+| `face.setPin("1234")` | HMAC PIN pairing; clients can change it (`pin.set`) and revoke all tokens (`revoke`) | `pin` |
+| `face.setVersion(v).setRepo("owner/repo").setAbout(txt)` | shown on the info page; `repo` lets clients check GitHub releases (user-triggered) | `info` |
+| `face.wifi().autoConnect()` | stored credentials, else captive AP; clients get `wifi.scan` (async, deduplicated, sorted by RSSI) and `wifi.set` (stores the credentials, pushes `wifi.status` connecting/connected/failed, AP stays up during the attempt and falls back to AP on failure) | `wifi` |
+| `face.enableOta(true)` | OTA push over WebSocket binary frames (`ota.begin` size/md5 -> chunks -> `ota.progress` every 500 ms -> MD5 verified -> `ota.done`, reboot after 1 s), `ota.url` download, and `POST /update` (raw body or multipart; needs `?tok=<session token>` or `Authorization: Bearer <token>` when a PIN is set) | `ota`, `otaurl` |
+| `face.setOtaCaCert(pem)` | CA certificate for https downloads and ntfy; without it https is used **unverified** (`setInsecure`) | |
+| `face.enableNtp(true, "pool.ntp.org", "CET-1CEST,M3.5.0,M10.5.0/3")` | IDF SNTP; the system time feeds `face.time()` and the clock widgets, rechecked every 10 min. `tz` is a POSIX TZ string or `nullptr` | `ntp` |
+| `face.ntfy("https://ntfy.sh", "topic", token)` / `face.notify(title, msg, Ntfy::High)` | direct ntfy POST from the device, one FreeRTOS task per message (loop never blocks); rate limit `face.ntfyRateLimit(ms)` (default 10 s), queue of 4, `notify()` returns false when full | `ntfy` |
+| `face.reboot()` / `face.onReboot(fn)` / `face.resetReason()` | reboot with callback; last reset reason as `ota\|button\|panic\|power\|wdt\|sw\|brownout\|other` (an OTA reboot leaves a marker in NVS so it reads `ota`) | `reboot` |
+
+Notes: `ota.url` downloads synchronously inside `face.loop()` (clients still get progress pushes, other traffic waits until it finishes). Flash cost: the TLS client for https adds about 120 KB, HTTPClient + Update about 60 KB; both are linked only when a sketch calls `enableOta()` or `ntfy()`. `-DESPFACE_NO_TLS` drops TLS (https URLs then fail with a log line).
+
 Development (all in Docker, from the repository root):
 
 ```
@@ -80,4 +95,6 @@ docker run --rm -v "$PWD":/w -v espface-pio:/pio -w /w/firmware espface-pio test
 docker run --rm -v "$PWD":/w -v espface-pio:/pio -w /w/firmware --entrypoint sh espface-pio tools/ci-build.sh   # ESP32 builds + footprint.md
 ```
 
-Compile-time options: `ESPFACE_MAX_CLIENTS` (4), `ESPFACE_LOG_HISTORY` (0), `ESPFACE_RENDERER_HOST`, `ESPFACE_FRAME_SIZE` (1024).
+Compile-time options: `ESPFACE_MAX_CLIENTS` (4), `ESPFACE_LOG_HISTORY` (0), `ESPFACE_RENDERER_HOST`, `ESPFACE_FRAME_SIZE` (1024), `ESPFACE_NO_TLS` (http-only OTA/ntfy), `ESPFACE_EMBED_WEB`.
+
+Examples: `Minimal` (gauge + switch), `FullDemo` (every widget, PIN, OTA, NTP, ntfy), `EmbeddedWeb` (renderer served from flash), `Notify` (ntfy alerts).

@@ -5,7 +5,11 @@
 #include <stdio.h>
 #include <sys/stat.h>
 #include <vector>
+#include <unistd.h>
 #include "core/Core.h"
+#include "sys/Info.h"
+#include "sys/Ntfy.h"
+#include "sys/Ota.h"
 #include "util/Hmac.h"
 
 using namespace espface;
@@ -583,6 +587,221 @@ void test_table_and_map_setters() {
   TEST_ASSERT_EQUAL_STRING("https://example.com/b.png", r.tr.last()["p"]["src"]);
 }
 
+// ---- phase 4: system pages --------------------------------------------------------
+struct MockUpdate : public OtaBackend {
+  std::vector<uint8_t> data; Str md5; size_t size = 0; bool ended = false, aborted = false, failWrite = false;
+  bool begin(size_t s, const char* m) override { size = s; md5 = m ? m : ""; data.clear(); ended = aborted = false; return s != 7; }   // 7 = "does not fit"
+  size_t write(const uint8_t* d, size_t n) override { if (failWrite) return 0; data.insert(data.end(), d, d + n); return n; }
+  bool end() override { ended = true; return md5 == "0123456789abcdef0123456789abcdef"; }
+  void abort() override { aborted = true; data.clear(); }
+  const char* error() const override { return ended ? "md5 mismatch" : "write failed"; }
+};
+
+struct OtaRig : public Rig {
+  MockUpdate upd; Ota ota;
+  OtaRig() : Rig() {
+    ota.begin(&core, &upd, &store);
+    core.sysHook = [this](uint8_t slot, const char* cmd, void* doc) { return ota.handleSys(slot, cmd, doc); };
+    core.binaryHook = [this](uint8_t slot, const uint8_t* d, size_t n) { return ota.onBinary(slot, d, n); };
+    core.closeHook = [this](uint8_t slot) { ota.onClose(slot); };
+    core.addCap("ota"); core.addCap("otaurl");
+    open(); hello(); tr.clear();
+  }
+  void bin(const char* bytes, int s = -1) { core.onBinary((uint8_t)(s < 0 ? slot : s), (const uint8_t*)bytes, strlen(bytes)); }
+  void beginOta(int size, const char* md5 = "0123456789abcdef0123456789abcdef") {
+    char m[160]; snprintf(m, sizeof m, "{\"t\":\"sys\",\"cmd\":\"ota.begin\",\"size\":%d,\"md5\":\"%s\"}", size, md5); sendMsg(m);
+  }
+};
+
+void test_caps_gating() {
+  Rig r; r.open(); r.hello();
+  JsonDocument h = r.tr.at(0, 0);
+  TEST_ASSERT_EQUAL(4, h["caps"].size());
+  for (const char* c : {"pin", "reboot", "info", "chart"}) TEST_ASSERT_TRUE(r.core.hasCap(c));
+  for (const char* c : {"ota", "otaurl", "wifi", "ntp", "ntfy"}) TEST_ASSERT_FALSE(r.core.hasCap(c));
+  r.sendMsg("{\"t\":\"sys\",\"cmd\":\"ota.begin\",\"size\":10,\"md5\":\"0123456789abcdef0123456789abcdef\"}");
+  TEST_ASSERT_EQUAL(8, r.tr.last()["code"].as<int>());
+  TEST_ASSERT_EQUAL_STRING("ota.begin", r.tr.last()["ref"]);
+  r.sendMsg("{\"t\":\"sys\",\"cmd\":\"ota.url\",\"url\":\"http://x/fw.bin\"}");
+  TEST_ASSERT_EQUAL(8, r.tr.last()["code"].as<int>());
+  r.sendMsg("{\"t\":\"sys\",\"cmd\":\"wifi.set\",\"ssid\":\"Home\"}");
+  TEST_ASSERT_EQUAL(8, r.tr.last()["code"].as<int>());
+  r.core.addCap("ota"); r.core.addCap("ota"); r.core.addCap("ntp");
+  int s2 = r.core.onOpen(&r.tr); r.core.onMessage((uint8_t)s2, "{\"t\":\"hello\",\"v\":1,\"client\":\"app\"}", 36);
+  TEST_ASSERT_EQUAL(6, r.tr.at((uint8_t)s2, 0)["caps"].size());
+  r.sendMsg("{\"t\":\"sys\",\"cmd\":\"ota.begin\",\"size\":10,\"md5\":\"0123456789abcdef0123456789abcdef\"}");
+  TEST_ASSERT_EQUAL(8, r.tr.last()["code"].as<int>());   // cap present but no handler installed
+  r.core.removeCap("ota"); r.core.removeCap("nope");
+  TEST_ASSERT_FALSE(r.core.hasCap("ota"));
+  TEST_ASSERT_TRUE(r.core.hasCap("ntp"));
+}
+
+void test_ota_push_state_machine() {
+  OtaRig r;
+  r.beginOta(10);
+  TEST_ASSERT_EQUAL_STRING("ota.begin", r.tr.last()["cmd"]);
+  TEST_ASSERT_TRUE(r.tr.last()["ok"].as<bool>());
+  TEST_ASSERT_TRUE(r.ota.busy());
+  TEST_ASSERT_EQUAL(10, r.upd.size);
+  r.beginOta(10);
+  TEST_ASSERT_EQUAL(9, r.tr.last()["code"].as<int>());
+  r.beginOta(10, "zz");
+  TEST_ASSERT_EQUAL(9, r.tr.last()["code"].as<int>());   // busy wins over validation
+  r.tr.clear();
+  r.bin("abcdef");
+  JsonDocument p = r.tr.last();
+  TEST_ASSERT_EQUAL_STRING("ota.progress", p["cmd"]);
+  TEST_ASSERT_EQUAL(60, p["pct"].as<int>());
+  r.bin("ghij");
+  TEST_ASSERT_FALSE(r.ota.busy());
+  JsonDocument d = r.tr.last();
+  TEST_ASSERT_EQUAL_STRING("ota.done", d["cmd"]);
+  TEST_ASSERT_TRUE(d["ok"].as<bool>());
+  TEST_ASSERT_EQUAL(100, r.tr.at(0, r.tr.count() - 2)["pct"].as<int>());
+  TEST_ASSERT_EQUAL(10, r.upd.data.size());
+  TEST_ASSERT_EQUAL_MEMORY("abcdefghij", r.upd.data.data(), 10);
+  TEST_ASSERT_TRUE(r.core.rebootPending());
+  Str marker; TEST_ASSERT_TRUE(r.store.getStr("rr", marker));
+  TEST_ASSERT_EQUAL_STRING("ota", marker.c_str());
+  // binary without a session
+  r.bin("x");
+  TEST_ASSERT_EQUAL(10, r.tr.last()["code"].as<int>());
+  // validation
+  r.beginOta(0); TEST_ASSERT_EQUAL(7, r.tr.last()["code"].as<int>());
+  r.beginOta(10, "0123456789ABCDEF0123456789abcdef"); TEST_ASSERT_EQUAL(7, r.tr.last()["code"].as<int>());
+  r.sendMsg("{\"t\":\"sys\",\"cmd\":\"ota.begin\",\"size\":10,\"md5\":\"0123456789abcdef0123456789abcdef\",\"kind\":\"fs\"}");
+  TEST_ASSERT_EQUAL(7, r.tr.last()["code"].as<int>());
+  r.beginOta(7); TEST_ASSERT_EQUAL(10, r.tr.last()["code"].as<int>());   // backend refused
+  TEST_ASSERT_FALSE(r.ota.busy());
+  // md5 mismatch
+  r.beginOta(3, "ffffffffffffffffffffffffffffffff"); r.bin("abc");
+  d = r.tr.last();
+  TEST_ASSERT_EQUAL_STRING("ota.done", d["cmd"]);
+  TEST_ASSERT_FALSE(d["ok"].as<bool>());
+  TEST_ASSERT_EQUAL_STRING("md5 mismatch", d["msg"]);
+  // write failure
+  r.upd.failWrite = true; r.beginOta(4); r.bin("ab");
+  TEST_ASSERT_FALSE(r.tr.last()["ok"].as<bool>());
+  TEST_ASSERT_EQUAL_STRING("write failed", r.tr.last()["msg"]);
+  TEST_ASSERT_TRUE(r.upd.aborted);
+  r.upd.failWrite = false;
+  // abort
+  r.beginOta(4); r.upd.aborted = false;
+  r.sendMsg("{\"t\":\"sys\",\"cmd\":\"ota.abort\"}");
+  TEST_ASSERT_TRUE(r.tr.last()["ok"].as<bool>());
+  TEST_ASSERT_TRUE(r.upd.aborted);
+  TEST_ASSERT_FALSE(r.ota.busy());
+  r.bin("ab"); TEST_ASSERT_EQUAL(10, r.tr.last()["code"].as<int>());
+  // another client cannot feed the session; a disconnect of the owner aborts it
+  r.beginOta(4);
+  int s2 = r.core.onOpen(&r.tr); r.core.onMessage((uint8_t)s2, "{\"t\":\"hello\",\"v\":1,\"client\":\"app\"}", 36);
+  r.bin("ab", s2);
+  TEST_ASSERT_EQUAL(10, r.tr.last((uint8_t)s2)["code"].as<int>());
+  TEST_ASSERT_TRUE(r.ota.busy());
+  r.core.onClose((uint8_t)r.slot);
+  TEST_ASSERT_FALSE(r.ota.busy());
+  r.open(); r.hello();
+  // timeout
+  r.beginOta(4); r.ota.setTimeout(1); usleep(3000); r.ota.loop();
+  TEST_ASSERT_FALSE(r.ota.busy());
+  TEST_ASSERT_EQUAL_STRING("timeout", r.tr.last()["msg"]);
+}
+
+void test_ota_url() {
+  OtaRig r;
+  r.sendMsg("{\"t\":\"sys\",\"cmd\":\"ota.url\",\"url\":\"ftp://x/fw.bin\"}");
+  TEST_ASSERT_EQUAL(7, r.tr.last()["code"].as<int>());
+  r.sendMsg("{\"t\":\"sys\",\"cmd\":\"ota.url\",\"url\":\"https://x/fw.bin\"}");
+  TEST_ASSERT_EQUAL(10, r.tr.last()["code"].as<int>());   // no downloader on native
+  Str seen;
+  r.ota.urlFetch = [&](const char* url) {
+    seen = url;
+    if (!r.ota.start(-1, 4, nullptr)) return false;
+    r.ota.feed((const uint8_t*)"ab", 2); r.ota.feed((const uint8_t*)"cd", 2);
+    return r.ota.finish();
+  };
+  r.sendMsg("{\"t\":\"sys\",\"cmd\":\"ota.url\",\"url\":\"https://x/fw.bin\"}");
+  TEST_ASSERT_EQUAL_STRING("https://x/fw.bin", seen.c_str());
+  int ok = r.tr.find("\"ota.url\",\"ok\":true");
+  TEST_ASSERT_TRUE(ok >= 0);
+  TEST_ASSERT_EQUAL_STRING("ota.done", r.tr.last()["cmd"]);
+  TEST_ASSERT_FALSE(r.tr.last()["ok"].as<bool>());   // mock verifies against the fixed md5
+  TEST_ASSERT_EQUAL(4, r.upd.data.size());
+}
+
+void test_reset_reason_mapping() {
+  TEST_ASSERT_EQUAL_STRING("power", resetReasonName(1, false));
+  TEST_ASSERT_EQUAL_STRING("button", resetReasonName(2, false));
+  TEST_ASSERT_EQUAL_STRING("sw", resetReasonName(3, false));
+  TEST_ASSERT_EQUAL_STRING("ota", resetReasonName(3, true));
+  TEST_ASSERT_EQUAL_STRING("panic", resetReasonName(4, false));
+  TEST_ASSERT_EQUAL_STRING("wdt", resetReasonName(5, false));
+  TEST_ASSERT_EQUAL_STRING("wdt", resetReasonName(6, true));
+  TEST_ASSERT_EQUAL_STRING("wdt", resetReasonName(7, false));
+  TEST_ASSERT_EQUAL_STRING("brownout", resetReasonName(9, false));
+  TEST_ASSERT_EQUAL_STRING("other", resetReasonName(0, false));
+  TEST_ASSERT_EQUAL_STRING("other", resetReasonName(8, false));
+  TEST_ASSERT_EQUAL_STRING("other", resetReasonName(99, true));
+}
+
+void test_info_fields() {
+  Rig r; r.open(); r.hello(); r.tr.clear();
+  r.core.infoFill = [](JsonWriter& jw) {
+    InfoData d; d.chip = "ESP32-S3"; d.rr = "ota"; d.heap = 180000; d.heapmin = 150000;
+    d.ip = "192.168.1.50"; d.ssid = "Home"; d.rssi = -61; d.hasRssi = true; d.mac = "aa:bb:cc:dd:ee:ff";
+    writeInfo(jw, d);
+  };
+  r.sendMsg("{\"t\":\"sys\",\"cmd\":\"info\"}");
+  JsonDocument i = r.tr.last();
+  TEST_ASSERT_EQUAL_STRING("ESP32-S3", i["chip"]);
+  TEST_ASSERT_EQUAL_STRING("ota", i["rr"]);
+  TEST_ASSERT_EQUAL(180000, i["heap"].as<int>());
+  TEST_ASSERT_EQUAL(150000, i["heapmin"].as<int>());
+  TEST_ASSERT_EQUAL_STRING("192.168.1.50", i["ip"]);
+  TEST_ASSERT_EQUAL_STRING("Home", i["ssid"]);
+  TEST_ASSERT_EQUAL(-61, i["rssi"].as<int>());
+  TEST_ASSERT_EQUAL_STRING("aa:bb:cc:dd:ee:ff", i["mac"]);
+  TEST_ASSERT_EQUAL_STRING("1.0.0", i["fw"]);
+  TEST_ASSERT_TRUE(i["up"].is<unsigned long>());
+  // AP mode: no rssi, no ip of a station
+  r.core.infoFill = [](JsonWriter& jw) { InfoData d; d.chip = "ESP32"; d.rr = "power"; writeInfo(jw, d); };
+  r.sendMsg("{\"t\":\"sys\",\"cmd\":\"info\"}");
+  i = r.tr.last();
+  TEST_ASSERT_FALSE(i["rssi"].is<int>());
+  TEST_ASSERT_FALSE(i["ip"].is<const char*>());
+  TEST_ASSERT_EQUAL(0, i["heap"].as<int>());
+}
+
+void test_ntfy_rate_limit() {
+  Notifier n; int sends = 0; Str lastTitle; uint8_t lastPrio = 0;
+  n.sender = [&](const Notifier::Msg& m) { sends++; lastTitle = m.title; lastPrio = m.prio; n.busy = false; };
+  TEST_ASSERT_FALSE(n.configured());
+  TEST_ASSERT_FALSE(n.notify("a", "b", Ntfy::Default, 1000));
+  n.configure("https://ntfy.sh/", "boiler", nullptr);
+  TEST_ASSERT_EQUAL_STRING("https://ntfy.sh", n.server().c_str());
+  TEST_ASSERT_TRUE(n.notify("first", "x", Ntfy::High, 1000));
+  TEST_ASSERT_EQUAL(1, sends);
+  TEST_ASSERT_EQUAL_STRING("first", lastTitle.c_str());
+  TEST_ASSERT_EQUAL(4, lastPrio);
+  TEST_ASSERT_TRUE(n.notify("second", "y", Ntfy::Low, 2000));
+  TEST_ASSERT_EQUAL(1, sends);
+  TEST_ASSERT_EQUAL(1, n.queued());
+  n.loop(5000); TEST_ASSERT_EQUAL(1, sends);
+  n.loop(10999); TEST_ASSERT_EQUAL(1, sends);
+  n.loop(11000); TEST_ASSERT_EQUAL(2, sends);
+  TEST_ASSERT_EQUAL_STRING("second", lastTitle.c_str());
+  TEST_ASSERT_EQUAL(0, n.queued());
+  for (int i = 0; i < 4; i++) TEST_ASSERT_TRUE(n.notify("q", "z", Ntfy::Min, 11000));
+  TEST_ASSERT_FALSE(n.notify("overflow", "z", Ntfy::Min, 11000));
+  TEST_ASSERT_EQUAL(4, n.queued());
+  n.setRateLimit(1000);
+  n.loop(12000); TEST_ASSERT_EQUAL(3, sends);
+  n.busy = true; n.loop(13000); TEST_ASSERT_EQUAL(3, sends);   // a POST still in flight
+  n.busy = false; n.loop(13000); TEST_ASSERT_EQUAL(4, sends);
+  TEST_ASSERT_EQUAL(2, n.queued());
+  TEST_ASSERT_EQUAL(4, n.sent());
+}
+
 int main() {
   mkdir("test_output", 0755);
   g_out = fopen("test_output/d2c.jsonl", "w");
@@ -605,6 +824,12 @@ int main() {
   RUN_TEST(test_dpad_events);
   RUN_TEST(test_clock_push);
   RUN_TEST(test_table_and_map_setters);
+  RUN_TEST(test_caps_gating);
+  RUN_TEST(test_ota_push_state_machine);
+  RUN_TEST(test_ota_url);
+  RUN_TEST(test_reset_reason_mapping);
+  RUN_TEST(test_info_fields);
+  RUN_TEST(test_ntfy_rate_limit);
   if (g_out) fclose(g_out);
   return UNITY_END();
 }

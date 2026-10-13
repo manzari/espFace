@@ -10,10 +10,10 @@ namespace espface {
 
 class Core;
 
-// STA/AP management, captive DNS and mDNS advertisement.
+// STA/AP management, captive DNS, mDNS advertisement, scan and provisioning (sys wifi.*).
 class WifiMgr {
  public:
-  enum State : uint8_t { Idle, Connecting, Connected, Ap };
+  enum State : uint8_t { Idle, Connecting, Connected, Failed, Ap };
   void begin(Core* core, Store* store, const char* hostname, uint16_t port);
   void connect(const char* ssid, const char* pass, bool save = true, uint32_t timeoutMs = 15000);
   void autoConnect(uint32_t timeoutMs = 15000);          // stored credentials, else access point
@@ -32,14 +32,18 @@ class WifiMgr {
  private:
   void startMdns();
   void setState(State s);
+  void sendStatus(uint8_t slot);
+  void sendScan(uint8_t slot, int n);
   Core* core_ = nullptr;
   Store* store_ = nullptr;
   Str host_, apSsid_, apPass_;
   uint16_t port_ = 80;
   State state_ = Idle;
-  uint32_t deadline_ = 0;
+  uint32_t deadline_ = 0, apOffAt_ = 0;
   bool fallbackAp_ = false;
+  bool keepAp_ = false;     // AP stays up while a provisioning attempt runs
   bool mdns_ = false;
+  uint8_t scanMask_ = 0;    // slots waiting for a scan result
   DNSServer dns_;
 };
 

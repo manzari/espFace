@@ -37,6 +37,7 @@ Ui& Core::addUi(const char* name) { Ui* u = new Ui(name); u->attach(this, store_
 Ui* Core::findUi(const char* name) { for (auto u : uis_) if (strcmp(u->name(), name) == 0) return u; return nullptr; }
 void Core::addTransport(Transport* t) { t->attach(this); trs_.push_back(t); }
 void Core::addCap(const char* cap) { if (!hasCap(cap)) caps_.push_back(Str(cap)); }
+void Core::removeCap(const char* cap) { for (size_t i = 0; i < caps_.size(); i++) if (strEq(caps_[i], cap)) { caps_.erase(caps_.begin() + i); return; } }
 bool Core::hasCap(const char* cap) const { for (auto& c : caps_) if (strEq(c, cap)) return true; return false; }
 uint8_t Core::clients() const { uint8_t n = 0; for (auto& c : clients_) if (c.used && c.authed) n++; return n; }
 
@@ -81,6 +82,7 @@ void Core::onClose(uint8_t slot) {
   Client* c = client(slot);
   if (!c || !c->used) return;
   bool wasAuthed = c->authed;
+  if (closeHook) closeHook(slot);
   ClientInfo info{slot, c->tr ? c->tr->name() : "", c->isWeb};
   c->reset(); c->slot = slot;
   if (wasAuthed && onDisconnect_) onDisconnect_(info);

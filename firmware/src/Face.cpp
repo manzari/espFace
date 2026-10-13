@@ -1,21 +1,11 @@
 #ifdef ARDUINO
 #include "Face.h"
 #include "web/bootstrap.h"
+#include "sys/Info.h"
 #include <esp_system.h>
+#include <time.h>
 
 namespace espface {
-
-static const char* resetReason() {
-  switch (esp_reset_reason()) {
-    case ESP_RST_POWERON: return "power";
-    case ESP_RST_SW: return "sw";
-    case ESP_RST_PANIC: return "panic";
-    case ESP_RST_INT_WDT: case ESP_RST_TASK_WDT: case ESP_RST_WDT: return "wdt";
-    case ESP_RST_BROWNOUT: return "brownout";
-    case ESP_RST_EXT: return "button";
-    default: return "other";
-  }
-}
 
 EspFace::EspFace() {}
 
@@ -28,34 +18,61 @@ void EspFace::begin(const char* name) {
   char id[7]; toHex(b, 3, id);
   core_.setId(id);
   if (!core_.fw()[0]) core_.setVersion(ESPFACE_LIB_VERSION);
+  Str marker; bool otaMarker = store_.getStr("rr", marker) && marker == "ota";
+  if (otaMarker) store_.remove("rr");
+  rr_ = resetReasonName((int)esp_reset_reason(), otaMarker);
   ws_.setBootstrap(ESPFACE_BOOTSTRAP_HTML, sizeof(ESPFACE_BOOTSTRAP_HTML) - 1, false);
   core_.addTransport(&ws_);
   core_.begin(name, &store_);
   wifi_.begin(&core_, &store_, name, ws_.port());
   core_.infoFill = [this](JsonWriter& jw) {
-    jw.kv("chip", ESP.getChipModel());
-    jw.kv("heap", (uint32_t)ESP.getFreeHeap());
-    jw.kv("heapmin", (uint32_t)ESP.getMinFreeHeap());
-    Str ip = wifi_.ip(); if (ip.length()) jw.kv("ip", ip);
-    Str ssid = wifi_.ssid(); if (ssid.length()) jw.kv("ssid", ssid);
-    if (wifi_.connected()) jw.kv("rssi", (int32_t)wifi_.rssi());
-    String m = WiFi.macAddress(); m.toLowerCase(); jw.kv("mac", m);
-    jw.kv("rr", resetReason());
+    InfoData d;
+    d.chip = ESP.getChipModel(); d.rr = rr_;
+    d.heap = ESP.getFreeHeap(); d.heapmin = ESP.getMinFreeHeap();
+    d.ip = wifi_.ip(); d.ssid = wifi_.ssid();
+    if (wifi_.connected()) { d.rssi = wifi_.rssi(); d.hasRssi = true; }
+    d.mac = WiFi.macAddress(); d.mac.toLowerCase();
+    writeInfo(jw, d);
   };
-  core_.sysHook = [this](uint8_t slot, const char* cmd, void* doc) { return wifi_.handleSys(slot, cmd, doc); };
+  core_.sysHook = [this](uint8_t slot, const char* cmd, void* doc) { return wifi_.handleSys(slot, cmd, doc) || ota_.handleSys(slot, cmd, doc); };
+  core_.binaryHook = [this](uint8_t slot, const uint8_t* data, size_t len) { return ota_.onBinary(slot, data, len); };
+  core_.closeHook = [this](uint8_t slot) { ota_.onClose(slot); };
   core_.rebootFn = [] { ESP.restart(); };
-  logf("espFace %s \"%s\" id %s", ESPFACE_LIB_VERSION, name, core_.id());
+  if (otaHttp_) otaHttp_();
+  logf("espFace %s \"%s\" id %s rr %s", ESPFACE_LIB_VERSION, name, core_.id(), rr_);
+}
+
+EspFace& EspFace::enableNtp(bool on, const char* server, const char* tz) {
+  ntp_ = on; ntpSynced_ = false; ntpAt_ = 0;
+  if (on) { if (tz) configTzTime(tz, server); else configTime(0, 0, server); core_.addCap("ntp"); }
+  else core_.removeCap("ntp");
+  return *this;
+}
+
+void EspFace::ntpLoop() {
+  uint32_t now = millis();
+  if (ntpAt_ && (uint32_t)(now - ntpAt_) < (ntpSynced_ ? 600000u : 1000u)) return;
+  ntpAt_ = now ? now : 1;
+  time_t t = ::time(nullptr);
+  if (t > 1600000000) { core_.setTime((uint32_t)t, true); if (!ntpSynced_) logf("ntp time %lu", (unsigned long)t); ntpSynced_ = true; }
+}
+
+void EspFace::tick() {
+  wifi_.loop();
+  ota_.loop();
+  ntfy_.loop(millis());
+  if (ntp_) ntpLoop();
+  core_.loop();
 }
 
 void EspFace::loop() {
   if (taskRunning_) return;
-  wifi_.loop();
-  core_.loop();
+  tick();
 }
 
 void EspFace::taskFn(void* self) {
   EspFace* f = (EspFace*)self;
-  for (;;) { f->wifi_.loop(); f->core_.loop(); vTaskDelay(pdMS_TO_TICKS(5)); }
+  for (;;) { f->tick(); vTaskDelay(pdMS_TO_TICKS(5)); }
 }
 
 void EspFace::beginTask(uint32_t stack, uint8_t prio, int core) {

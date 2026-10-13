@@ -1,13 +1,17 @@
 #pragma once
 #include "core/Core.h"
+#include "sys/Ntfy.h"
 #ifdef ARDUINO
 #include "sys/NvsStore.h"
 #include "sys/WifiMgr.h"
+#include "sys/Ota.h"
+#include "sys/OtaEsp.h"
+#include "sys/NtfyEsp.h"
 #include "transport/WsTransport.h"
 
 namespace espface {
 
-// Arduino-facing facade: wires the core to NVS, WiFi and the WebSocket transport.
+// Arduino-facing facade: wires the core to NVS, WiFi, OTA, NTP, ntfy and the WebSocket transport.
 class EspFace {
  public:
   EspFace();
@@ -24,13 +28,34 @@ class EspFace {
   EspFace& setAbout(const char* a) { core_.setAbout(a); return *this; }
   EspFace& setPort(uint16_t port) { ws_.setPort(port); return *this; }
   EspFace& setRendererHost(const char* host) { ws_.setRendererHost(host); return *this; }
-  EspFace& enableOta(bool on) { ota_ = on; return *this; }   // used from phase 4
+  // Inline on purpose: Update, HTTPClient and TLS are linked only when a sketch calls these.
+  EspFace& enableOta(bool on) {                                // caps ota + otaurl, POST /update
+    otaOn_ = on;
+    if (on) {
+      if (!otaBackend_) { static UpdateBackend be; otaBackend_ = &be; ota_.begin(&core_, &be, &store_); otaInstallUrlFetch(ota_); }
+      core_.addCap("ota"); core_.addCap("otaurl");
+      otaHttp_ = [this] { if (!httpUpdate_ && ws_.running()) { otaRegisterHttp(ota_, core_, ws_.handle()); httpUpdate_ = true; } };
+      if (begun_) otaHttp_();
+    } else { core_.removeCap("ota"); core_.removeCap("otaurl"); ota_.abort(); }
+    return *this;
+  }
+  EspFace& setOtaCaCert(const char* pem) { ca_ = pem; ota_.setCaCert(pem); return *this; }   // https verification for ota.url and ntfy (default: unverified)
+  EspFace& enableNtp(bool on, const char* server = "pool.ntp.org", const char* tz = nullptr);   // tz: POSIX string, e.g. "CET-1CEST,M3.5.0,M10.5.0/3"
+  EspFace& ntfy(const char* server, const char* topic, const char* token = nullptr) {
+    ntfy_.configure(server, topic, token);
+    if (ntfy_.configured()) { core_.addCap("ntfy"); if (!ntfy_.sender) ntfyInstallSender(ntfy_, &ca_); } else core_.removeCap("ntfy");
+    return *this;
+  }
+  EspFace& ntfyRateLimit(uint32_t ms) { ntfy_.setRateLimit(ms); return *this; }
+  bool notify(const char* title, const char* msg, Ntfy prio = Ntfy::Default) { return ntfy_.notify(title, msg, prio, millis()); }
 
   Ui& ui() { return core_.ui(); }
   Ui& addUi(const char* name) { return core_.addUi(name); }
   WifiMgr& wifi() { return wifi_; }
   WsTransport& ws() { return ws_; }
   Core& core() { return core_; }
+  Ota& ota() { return ota_; }
+  Notifier& notifier() { return ntfy_; }
 
   bool set(const char* id, bool v) { return core_.ui().set(id, v); }
   bool set(const char* id, float v) { return core_.ui().set(id, v); }
@@ -54,15 +79,26 @@ class EspFace {
   void onReboot(std::function<void(RebootReason)> fn) { core_.onReboot(fn); }
   void reboot(uint32_t delayMs = 500) { core_.requestReboot(RebootReason::Sketch, delayMs); }
   const char* id() const { return core_.id(); }
+  const char* resetReason() const { return rr_; }
 
  private:
   uint64_t chartTs() const { uint32_t t = core_.time(); return t ? (uint64_t)t * 1000ULL + (millis() % 1000) : (uint64_t)millis(); }
   static void taskFn(void* self);
+  void tick();
+  void ntpLoop();
   Core core_;
   NvsStore store_;
   WifiMgr wifi_;
   WsTransport ws_;
-  bool ota_ = false;
+  Ota ota_;
+  OtaBackend* otaBackend_ = nullptr;
+  std::function<void()> otaHttp_;
+  Notifier ntfy_;
+  const char* ca_ = nullptr;
+  const char* rr_ = "other";
+  bool otaOn_ = false, httpUpdate_ = false;
+  bool ntp_ = false, ntpSynced_ = false;
+  uint32_t ntpAt_ = 0;
   bool taskRunning_ = false;
   bool begun_ = false;
 };
@@ -75,5 +111,6 @@ using espface::WidgetRef;
 using espface::Value;
 using espface::ClientInfo;
 using espface::RebootReason;
+using espface::Ntfy;
 using espface::Str;
 #endif

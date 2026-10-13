@@ -1,4 +1,5 @@
-// Every widget: pages, groups, rows, persist, PIN, dialogs, props, log, chart, callbacks, extended I/O widgets.
+// Every widget: pages, groups, rows, persist, PIN, dialogs, props, log, chart, callbacks, extended I/O widgets,
+// plus the system features: OTA (push, URL, POST /update), NTP time, direct ntfy notifications.
 #include <espFace.h>
 
 EspFace face;
@@ -14,6 +15,9 @@ void setup() {
   face.begin("Boiler");
   face.setPin("1234");                     // comment out for an open device
   face.wifi().autoConnect();
+  face.enableOta(true);                                        // caps ota + otaurl; https downloads unverified unless setOtaCaCert()
+  face.enableNtp(true, "pool.ntp.org", "CET-1CEST,M3.5.0,M10.5.0/3");
+  face.ntfy("https://ntfy.sh", "espface-demo");                // direct ntfy, one message per 10 s
   face.onConnect([](const ClientInfo& c) { Serial.printf("client %u connected via %s\n", c.slot, c.transport); });
   face.onDisconnect([](const ClientInfo& c) { Serial.printf("client %u left\n", c.slot); });
   face.onReboot([](RebootReason) { Serial.println("saving state before reboot"); });
@@ -50,6 +54,7 @@ void setup() {
   ui.button("rename", "Rename").row("r2").group("control").onClick([] {
     face.ui().prompt("d2", "New state text", [](bool ok, const Str& v) { if (ok) face.set("state", v.c_str()); }, "idle");
   });
+  ui.button("alert", "Notify").icon("warning").group("control").onClick([] { face.notify("Boiler", "Manual alert from FullDemo", Ntfy::High); });
   ui.button("horn", "Horn").hold().color("#ff8800").group("control").onEvent([](int v) { face.log("term", v ? "horn pressed" : "horn released", "#ff8800"); });
   ui.log("term", "Log", 200, 8);
 
