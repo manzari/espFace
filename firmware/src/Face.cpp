@@ -22,7 +22,7 @@ void EspFace::begin(const char* name) {
   if (otaMarker) store_.remove("rr");
   rr_ = resetReasonName((int)esp_reset_reason(), otaMarker);
   ws_.setBootstrap(ESPFACE_BOOTSTRAP_HTML, sizeof(ESPFACE_BOOTSTRAP_HTML) - 1, false);
-  core_.addTransport(&ws_);
+  if (wsOn_) core_.addTransport(&ws_);
   core_.begin(name, &store_);
   wifi_.begin(&core_, &store_, name, ws_.port());
   core_.infoFill = [this](JsonWriter& jw) {

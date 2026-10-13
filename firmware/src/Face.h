@@ -8,10 +8,17 @@
 #include "sys/OtaEsp.h"
 #include "sys/NtfyEsp.h"
 #include "transport/WsTransport.h"
+#include "transport/StreamTransport.h"
+#ifdef ESPFACE_BLE
+#include "transport/BleTransport.h"
+#endif
+#ifdef ESPFACE_BT_CLASSIC
+#include "transport/BtSerial.h"
+#endif
 
 namespace espface {
 
-// Arduino-facing facade: wires the core to NVS, WiFi, OTA, NTP, ntfy and the WebSocket transport.
+// Arduino-facing facade: wires the core to NVS, WiFi, OTA, NTP, ntfy and the WebSocket, stream, BLE and SPP transports.
 class EspFace {
  public:
   EspFace();
@@ -27,6 +34,8 @@ class EspFace {
   EspFace& setRepo(const char* r) { core_.setRepo(r); return *this; }
   EspFace& setAbout(const char* a) { core_.setAbout(a); return *this; }
   EspFace& setPort(uint16_t port) { ws_.setPort(port); return *this; }
+  EspFace& enableWs(bool on) { wsOn_ = on; return *this; }              // before begin(); false skips the http/WebSocket server
+  EspFace& logTo(Print* p) { setLogOutput(p); return *this; }           // library log lines; nullptr silences them
   EspFace& setRendererHost(const char* host) { ws_.setRendererHost(host); return *this; }
   // Inline on purpose: Update, HTTPClient and TLS are linked only when a sketch calls these.
   EspFace& enableOta(bool on) {                                // caps ota + otaurl, POST /update
@@ -53,6 +62,17 @@ class EspFace {
   Ui& addUi(const char* name) { return core_.addUi(name); }
   WifiMgr& wifi() { return wifi_; }
   WsTransport& ws() { return ws_; }
+  // Any Stream (UART, USB CDC, BluetoothSerial) as a one-client line transport; may be called before or after begin().
+  StreamTransport& serial(Stream& s, const char* name = "serial") { auto* t = new StreamTransport(s, name); core_.addTransport(t); return *t; }
+#ifdef ESPFACE_BLE
+  BleTransport& ble() { if (!bleAdded_) { bleAdded_ = true; core_.addTransport(&ble_); } return ble_; }   // enables BLE
+#endif
+#ifdef ESPFACE_BT_CLASSIC
+  BtSerialTransport& btClassic(const char* name = nullptr) {                                           // enables Bluetooth Classic SPP
+    if (!bt_) { bt_ = new BtSerialTransport(); if (name) bt_->setName(name); core_.addTransport(bt_); }
+    return *bt_;
+  }
+#endif
   Core& core() { return core_; }
   Ota& ota() { return ota_; }
   Notifier& notifier() { return ntfy_; }
@@ -90,6 +110,14 @@ class EspFace {
   NvsStore store_;
   WifiMgr wifi_;
   WsTransport ws_;
+#ifdef ESPFACE_BLE
+  BleTransport ble_;
+  bool bleAdded_ = false;
+#endif
+#ifdef ESPFACE_BT_CLASSIC
+  BtSerialTransport* bt_ = nullptr;
+#endif
+  bool wsOn_ = true;
   Ota ota_;
   OtaBackend* otaBackend_ = nullptr;
   std::function<void()> otaHttp_;

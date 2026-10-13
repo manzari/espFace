@@ -66,14 +66,22 @@ void fmtFloat(float v, char* out, size_t cap) {
   if (e == dot) *e = 0;
 }
 
+#ifdef ARDUINO
+static Print* g_log = &Serial;
+void setLogOutput(Print* p) { g_log = p; }
+#endif
+
 void logf(const char* fmt, ...) {
+#ifdef ARDUINO
+  if (!g_log) return;
+#endif
   char buf[160];
   va_list ap;
   va_start(ap, fmt);
   vsnprintf(buf, sizeof buf, fmt, ap);
   va_end(ap);
 #ifdef ARDUINO
-  Serial.print("[espFace] "); Serial.println(buf);
+  g_log->print("[espFace] "); g_log->println(buf);
 #else
   printf("[espFace] %s\n", buf);
 #endif

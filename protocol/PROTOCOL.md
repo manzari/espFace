@@ -17,10 +17,22 @@ Status: draft, phase 0 (2026-10-13). This file, `schema/v1/*.json` and `vectors/
 | Transport | Framing |
 |---|---|
 | WebSocket (`ws://<host>:<port>/ws`) | one message per text frame; binary frames carry OTA data only |
-| BLE (service `0000ea00-0000-1000-8000-00805f9b34fb`) | RX characteristic `0000ea01-...` write without response, TX `0000ea02-...` notify, `0000ea03-...` read-only `name\0id`. Each GATT packet is `[seq:1][flags:1][payload]`, flags bit0 = last chunk of this message, seq wraps at 255 and increments per chunk; payload up to MTU-3. Messages are reassembled in seq order; a gap discards the partial message. |
-| Stream (UART, USB CDC, Bluetooth SPP) | one message per line, terminated by `\n`. Binary frames do not exist, so OTA push is unavailable. |
+| BLE (service `0000ea00-0000-1000-8000-00805f9b34fb`) | RX characteristic `0000ea01-...` write without response (write with response also accepted), TX `0000ea02-...` notify, `0000ea03-...` read-only `name\0id`. Each GATT packet is `[seq:1][flags:1][payload]`, flags bit0 = last chunk of this message, bit1 = first chunk; payload up to MTU-3. See below. |
+| Stream (UART, USB CDC, Bluetooth SPP) | one message per line, terminated by `\n`. Binary frames do not exist, so OTA push is unavailable. See below. |
 
 Message size: a device accepts C→D messages up to 2048 bytes. D→C messages have no fixed limit, but the `ui` message is the only one expected to exceed 4 KB.
+
+BLE details (firmware: NimBLE, `ESPFACE_BLE`):
+- Advertising carries the 128-bit service UUID; the device name is in the scan response. Scanners filter on the service UUID and read `0000ea03-...` for `name` and `id` (UTF-8 `name`, one NUL byte, six-hex-digit `id`) without connecting a session.
+- The client requests an MTU of 512 after connecting; the device accepts up to 512 (payload up to 509 bytes per packet). Both sides chunk against the negotiated MTU. The client must subscribe to TX notifications before sending `hello`; the device drops notifications to an unsubscribed client.
+- `seq` is a per-connection, per-direction counter starting at 0, incremented per packet, wrapping 255 → 0. The receiver expects `seq == previous + 1`: a packet with the previous `seq` again is a duplicate and ignored, any other value is a gap that discards the partial message (the next packet with bit1 set starts fresh). A continuation packet without an open message is dropped. A message exceeding the receiver's limit is answered with `err` code 2 and its remaining chunks are skipped up to bit0.
+- Several centrals may connect (firmware default 2); each connection is one session with its own counters.
+
+Stream details (firmware: `face.serial(Stream)`, `ESPFACE_BT_CLASSIC`):
+- `\r` is ignored, empty lines are ignored, a line longer than 2048 bytes is discarded and answered with `err` code 2.
+- One session per stream. There is no link-level connect, so the session opens on the first line; a `hello` on an open session closes it and starts a fresh unauthenticated one. Bluetooth SPP closes the session when the link drops; a UART may be configured with an idle timeout.
+- Clients must ignore lines that are not a JSON object (boot ROM output, library log lines).
+- `ota.begin` on a stream or BLE session is answered with `err` code 8; `ota.url` works.
 
 ## 3. Session lifecycle
 
