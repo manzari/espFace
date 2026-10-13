@@ -7,7 +7,7 @@ protocol/           JSON schema v1, test vectors, validator      (phase 0, done)
 tools/fake-device/  Node reference implementation of a device    (phase 0, done)
 firmware/           Arduino library                              (phase 1)
 web/                TypeScript renderer                          (phase 2)
-apps/mobile/        Flutter app                                  (phase 3)
+apps/mobile/        Flutter app                                  (phase 3, done)
 docker/             build and run images
 ```
 

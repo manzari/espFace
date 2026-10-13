@@ -36,3 +36,23 @@ jobs:
       - run: cat firmware/footprint.md >> "$GITHUB_STEP_SUMMARY" || true
       - uses: actions/upload-artifact@v4
         with: { name: footprint, path: firmware/footprint.md }
+
+  flutter:
+    runs-on: docker
+    container: ghcr.io/cirruslabs/flutter:3.44.0
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: cd tools/fake-device && npm ci --omit=dev && (node src/index.mjs --port=18080 --pin=1234 > /tmp/fake.log 2>&1 &) && sleep 2
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pub-cache
+            ~/.gradle
+          key: flutter-${{ hashFiles('apps/mobile/pubspec.lock') }}
+      - run: cd apps/mobile && flutter pub get && flutter analyze && flutter test
+      - run: cd apps/mobile && ESPFACE_FAKE_WS=ws://localhost:18080/ws flutter test test/integration/fake_device_test.dart
+      - run: cd apps/mobile && flutter build apk --debug && ls -la build/app/outputs/flutter-apk/app-debug.apk
+      - uses: actions/upload-artifact@v4
+        with: { name: app-debug.apk, path: apps/mobile/build/app/outputs/flutter-apk/app-debug.apk }
