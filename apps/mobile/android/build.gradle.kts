@@ -2,8 +2,6 @@ allprojects {
     repositories {
         google()
         mavenCentral()
-        // Fallback mirror of Google Maven for networks where dl.google.com is unreachable.
-        maven { url = uri("https://repo.huaweicloud.com/repository/maven/") }
     }
 }
 
