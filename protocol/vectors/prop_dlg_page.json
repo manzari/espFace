@@ -1,0 +1,17 @@
+[
+  { "name": "prop label and color", "dir": "d2c", "msg": { "t": "prop", "id": "temp", "p": { "lbl": "Temp (HOT)", "color": "#ff0000" } } },
+  { "name": "prop hide", "dir": "d2c", "msg": { "t": "prop", "id": "reset", "p": { "vis": false } } },
+  { "name": "prop disable and range", "dir": "d2c", "msg": { "t": "prop", "id": "target", "p": { "dis": true, "max": 150 } } },
+  { "name": "prop empty rejected", "dir": "d2c", "valid": false, "msg": { "t": "prop", "id": "temp", "p": {} } },
+  { "name": "prop cannot change type", "dir": "d2c", "valid": false, "msg": { "t": "prop", "id": "temp", "p": { "ty": "label" } } },
+  { "name": "dlg confirm", "dir": "d2c", "msg": { "t": "dlg", "id": "d1", "kind": "confirm", "msg": "Shut down pump?", "title": "Pump" } },
+  { "name": "dlg prompt with default and timeout", "dir": "d2c", "msg": { "t": "dlg", "id": "d2", "kind": "prompt", "msg": "New name", "def": "Boiler", "timeout": 120 } },
+  { "name": "dlg close", "dir": "d2c", "msg": { "t": "dlg", "id": "d1", "close": true } },
+  { "name": "dlg without kind or close", "dir": "d2c", "valid": false, "msg": { "t": "dlg", "id": "d1", "msg": "x" } },
+  { "name": "dlg answer confirm yes", "dir": "c2d", "msg": { "t": "dlg", "id": "d1", "ok": true } },
+  { "name": "dlg answer prompt", "dir": "c2d", "msg": { "t": "dlg", "id": "d2", "ok": true, "v": "Kitchen boiler" } },
+  { "name": "dlg answer cancel", "dir": "c2d", "msg": { "t": "dlg", "id": "d2", "ok": false } },
+  { "name": "dlg answer missing ok", "dir": "c2d", "valid": false, "msg": { "t": "dlg", "id": "d1" } },
+  { "name": "page switch", "dir": "c2d", "msg": { "t": "page", "id": "setup" } },
+  { "name": "page missing id", "dir": "c2d", "valid": false, "msg": { "t": "page" } }
+]

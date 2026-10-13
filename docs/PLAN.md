@@ -302,7 +302,7 @@ Node + `ws` implementing the device side of the protocol with a demo UI using ev
 
 | Phase | Deliverable | Depends on |
 |---|---|---|
-| 0 Protocol | `PROTOCOL.md`, JSON schema v1 incl. all widget types, `prop`, `dlg`, `time`, HMAC auth; test vectors; fake device | – |
+| 0 Protocol (done 2026-10-13) | `PROTOCOL.md`, JSON schema v1 incl. all widget types, `prop`, `dlg`, `time`, HMAC auth; test vectors; fake device | – |
 | 1 Firmware core | begin/loop, WS transport, UI builder with pages/rows/groups, upd/set/ev, HMAC PIN auth (per UI), persist, prop/show-hide, dialogs, client clock, active-page filtering, multiple UIs, connect/disconnect/reboot callbacks, `face.delay`, base widgets (label, button, switch, slider, number, text, select, gauge, progress, led, chart, header, group, page, row, spacer), captive AP + bootstrap page, `Minimal` + `FullDemo` examples, native tests, CI footprint report | 0 |
 | 1b Firmware extended widgets | textarea, flags, color, datetime, joystick, dpad, hold button, spin, regex, display, log (+history replay), table, image, stream, clock, textblock, gauge styles, chart styles/legend, switch labels, segmented select, RGB led, bipolar progress, icons | 1 |
 | 2 Web renderer | all widgets, pages, rows, dialogs, prop merges, pairing dialog, charts/logs, theme settings, hosting on Coolify, embed tooling + `EmbeddedWeb` example | 0 (dev against fake device), 1 for e2e |

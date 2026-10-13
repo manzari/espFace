@@ -1,0 +1,19 @@
+{
+  "name": "@espface/fake-device",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Node implementation of the espFace device side for client development and CI",
+  "bin": { "espface-fake-device": "src/index.mjs" },
+  "scripts": {
+    "start": "node src/index.mjs",
+    "test": "node test/smoke.mjs"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1"
+  }
+}

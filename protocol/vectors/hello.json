@@ -1,0 +1,15 @@
+[
+  { "name": "client hello app without token", "dir": "c2d", "msg": { "t": "hello", "v": 1, "client": "app" } },
+  { "name": "client hello web with token", "dir": "c2d", "msg": { "t": "hello", "v": 1, "client": "web", "tok": "0123456789abcdef0123456789abcdef" } },
+  { "name": "client hello bad client kind", "dir": "c2d", "valid": false, "msg": { "t": "hello", "v": 1, "client": "desktop" } },
+  { "name": "client hello token wrong length", "dir": "c2d", "valid": false, "msg": { "t": "hello", "v": 1, "client": "app", "tok": "abc" } },
+  { "name": "device hello no auth", "dir": "d2c", "msg": { "t": "hello", "v": 1, "name": "Boiler", "id": "a1b2c3", "proj": "Home", "icon": "thermostat", "fw": "1.2.0", "auth": "none", "ok": true, "up": 123456, "caps": ["wifi", "ota", "otaurl", "chart", "pin", "reboot", "info"] } },
+  { "name": "device hello pin required with nonce", "dir": "d2c", "msg": { "t": "hello", "v": 1, "name": "Boiler", "id": "a1b2c3", "auth": "pin", "ok": false, "nonce": "00112233445566778899aabbccddeeff", "up": 5000, "caps": ["wifi"] } },
+  { "name": "device hello pin accepted by token", "dir": "d2c", "msg": { "t": "hello", "v": 1, "name": "Boiler", "id": "a1b2c3", "auth": "pin", "ok": true, "up": 5000, "caps": [] } },
+  { "name": "device hello locked out", "dir": "d2c", "msg": { "t": "hello", "v": 1, "name": "Boiler", "id": "a1b2c3", "auth": "pin", "ok": false, "lock": 42, "up": 5000, "caps": [] } },
+  { "name": "device hello ok:false without nonce or lock", "dir": "d2c", "valid": false, "msg": { "t": "hello", "v": 1, "name": "Boiler", "id": "a1b2c3", "auth": "pin", "ok": false, "up": 5000, "caps": [] } },
+  { "name": "device hello auth none but ok:false", "dir": "d2c", "valid": false, "msg": { "t": "hello", "v": 1, "name": "Boiler", "id": "a1b2c3", "auth": "none", "ok": false, "nonce": "00112233445566778899aabbccddeeff", "up": 5000, "caps": [] } },
+  { "name": "device hello ok:true with nonce", "dir": "d2c", "valid": false, "msg": { "t": "hello", "v": 1, "name": "Boiler", "id": "a1b2c3", "auth": "pin", "ok": true, "nonce": "00112233445566778899aabbccddeeff", "up": 5000, "caps": [] } },
+  { "name": "device hello unknown cap", "dir": "d2c", "valid": false, "msg": { "t": "hello", "v": 1, "name": "Boiler", "id": "a1b2c3", "auth": "none", "ok": true, "up": 0, "caps": ["mqtt"] } },
+  { "name": "device hello bad id", "dir": "d2c", "valid": false, "msg": { "t": "hello", "v": 1, "name": "Boiler", "id": "BOILER-1", "auth": "none", "ok": true, "up": 0, "caps": [] } }
+]

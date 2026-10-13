@@ -1,0 +1,280 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://espface.dev/schema/v1/message.schema.json",
+  "title": "espFace message v1",
+  "description": "Validate a client-to-device message against #/$defs/c2d and a device-to-client message against #/$defs/d2c.",
+  "$defs": {
+    "ident": { "type": "string", "pattern": "^[A-Za-z0-9_]{1,15}$" },
+    "hex32": { "type": "string", "pattern": "^[0-9a-f]{32}$" },
+    "hex64": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "color": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
+    "deviceId": { "type": "string", "pattern": "^[0-9a-f]{6,12}$" },
+    "cap": { "enum": ["wifi", "ota", "otaurl", "chart", "ble", "ntp", "ntfy", "pin", "reboot", "info"] },
+    "value": {
+      "oneOf": [
+        { "type": "boolean" },
+        { "type": "number" },
+        { "type": "string", "maxLength": 4096 },
+        { "type": "array", "maxItems": 2, "minItems": 2, "items": { "type": "number", "minimum": -100, "maximum": 100 } },
+        { "type": "array", "maxItems": 1000, "items": { "type": "array", "maxItems": 12, "items": { "type": ["string", "number"] } } }
+      ]
+    },
+
+    "c2d": {
+      "type": "object",
+      "required": ["t"],
+      "oneOf": [
+        { "$ref": "#/$defs/c2d_hello" },
+        { "$ref": "#/$defs/c2d_auth" },
+        { "$ref": "#/$defs/c2d_time" },
+        { "$ref": "#/$defs/c2d_set" },
+        { "$ref": "#/$defs/c2d_ev" },
+        { "$ref": "#/$defs/c2d_dlg" },
+        { "$ref": "#/$defs/c2d_page" },
+        { "$ref": "#/$defs/c2d_sys" }
+      ]
+    },
+    "c2d_hello": {
+      "type": "object",
+      "required": ["t", "v", "client"],
+      "properties": {
+        "t": { "const": "hello" },
+        "v": { "type": "integer", "minimum": 1 },
+        "client": { "enum": ["app", "web"] },
+        "tok": { "$ref": "#/$defs/hex32" }
+      }
+    },
+    "c2d_auth": {
+      "type": "object",
+      "required": ["t", "mac"],
+      "properties": { "t": { "const": "auth" }, "mac": { "$ref": "#/$defs/hex64" } }
+    },
+    "c2d_time": {
+      "type": "object",
+      "required": ["t", "unix"],
+      "properties": {
+        "t": { "const": "time" },
+        "unix": { "type": "integer", "minimum": 1600000000 },
+        "tz": { "type": "integer", "minimum": -720, "maximum": 840 }
+      }
+    },
+    "c2d_set": {
+      "type": "object",
+      "required": ["t", "id", "v"],
+      "properties": { "t": { "const": "set" }, "id": { "$ref": "#/$defs/ident" }, "v": { "$ref": "#/$defs/value" } }
+    },
+    "c2d_ev": {
+      "type": "object",
+      "required": ["t", "id"],
+      "properties": {
+        "t": { "const": "ev" },
+        "id": { "$ref": "#/$defs/ident" },
+        "v": { "oneOf": [ { "enum": [0, 1] }, { "enum": ["u", "d", "l", "r", "c"] } ] }
+      }
+    },
+    "c2d_dlg": {
+      "type": "object",
+      "required": ["t", "id", "ok"],
+      "properties": {
+        "t": { "const": "dlg" },
+        "id": { "$ref": "#/$defs/ident" },
+        "ok": { "type": "boolean" },
+        "v": { "type": "string", "maxLength": 1024 }
+      }
+    },
+    "c2d_page": {
+      "type": "object",
+      "required": ["t", "id"],
+      "properties": { "t": { "const": "page" }, "id": { "$ref": "#/$defs/ident" } }
+    },
+    "c2d_sys": {
+      "type": "object",
+      "required": ["t", "cmd"],
+      "properties": {
+        "t": { "const": "sys" },
+        "cmd": { "enum": ["info", "wifi.scan", "wifi.set", "wifi.status", "reboot", "pin.set", "revoke", "ota.begin", "ota.abort", "ota.url"] },
+        "ssid": { "type": "string", "maxLength": 32 },
+        "pass": { "type": "string", "maxLength": 64 },
+        "pin": { "type": "string", "maxLength": 32 },
+        "size": { "type": "integer", "minimum": 1 },
+        "md5": { "$ref": "#/$defs/hex32" },
+        "kind": { "enum": ["fw"] },
+        "url": { "type": "string", "pattern": "^https?://", "maxLength": 512 }
+      },
+      "allOf": [
+        { "if": { "properties": { "cmd": { "const": "wifi.set" } } }, "then": { "required": ["ssid"] } },
+        { "if": { "properties": { "cmd": { "const": "pin.set" } } }, "then": { "required": ["pin"] } },
+        { "if": { "properties": { "cmd": { "const": "ota.begin" } } }, "then": { "required": ["size", "md5"] } },
+        { "if": { "properties": { "cmd": { "const": "ota.url" } } }, "then": { "required": ["url"] } }
+      ]
+    },
+
+    "d2c": {
+      "type": "object",
+      "required": ["t"],
+      "oneOf": [
+        { "$ref": "#/$defs/d2c_hello" },
+        { "$ref": "#/$defs/d2c_auth" },
+        { "$ref": "#/$defs/d2c_ui" },
+        { "$ref": "#/$defs/d2c_upd" },
+        { "$ref": "#/$defs/d2c_pts" },
+        { "$ref": "#/$defs/d2c_toast" },
+        { "$ref": "#/$defs/d2c_log" },
+        { "$ref": "#/$defs/d2c_prop" },
+        { "$ref": "#/$defs/d2c_dlg" },
+        { "$ref": "#/$defs/d2c_sys" },
+        { "$ref": "#/$defs/d2c_err" }
+      ]
+    },
+    "d2c_hello": {
+      "type": "object",
+      "required": ["t", "v", "name", "id", "auth", "ok", "up", "caps"],
+      "properties": {
+        "t": { "const": "hello" },
+        "v": { "type": "integer", "minimum": 1 },
+        "name": { "type": "string", "minLength": 1, "maxLength": 32 },
+        "id": { "$ref": "#/$defs/deviceId" },
+        "proj": { "type": "string", "maxLength": 32 },
+        "icon": { "type": "string", "pattern": "^[a-z0-9_]{1,32}$" },
+        "fw": { "type": "string", "maxLength": 32 },
+        "auth": { "enum": ["none", "pin"] },
+        "ok": { "type": "boolean" },
+        "nonce": { "$ref": "#/$defs/hex32" },
+        "lock": { "type": "integer", "minimum": 1 },
+        "up": { "type": "integer", "minimum": 0 },
+        "caps": { "type": "array", "items": { "$ref": "#/$defs/cap" }, "uniqueItems": true }
+      },
+      "allOf": [
+        { "if": { "properties": { "ok": { "const": true } } }, "then": { "not": { "anyOf": [ { "required": ["nonce"] }, { "required": ["lock"] } ] } } },
+        { "if": { "properties": { "auth": { "const": "none" } } }, "then": { "properties": { "ok": { "const": true } } } },
+        { "if": { "properties": { "ok": { "const": false } } }, "then": { "oneOf": [ { "required": ["nonce"] }, { "required": ["lock"] } ] } }
+      ]
+    },
+    "d2c_auth": {
+      "type": "object",
+      "required": ["t", "ok"],
+      "properties": {
+        "t": { "const": "auth" },
+        "ok": { "type": "boolean" },
+        "tok": { "$ref": "#/$defs/hex32" },
+        "left": { "type": "integer", "minimum": 0, "maximum": 4 },
+        "lock": { "type": "integer", "minimum": 1 }
+      },
+      "allOf": [
+        { "if": { "properties": { "ok": { "const": true } } }, "then": { "required": ["tok"] } },
+        { "if": { "properties": { "ok": { "const": false } } }, "then": { "oneOf": [ { "required": ["left"] }, { "required": ["lock"] } ], "not": { "required": ["tok"] } } }
+      ]
+    },
+    "d2c_ui": {
+      "type": "object",
+      "required": ["t", "rev", "w"],
+      "properties": {
+        "t": { "const": "ui" },
+        "rev": { "type": "integer", "minimum": 0 },
+        "w": { "type": "array", "maxItems": 500, "items": { "$ref": "widget.schema.json" } }
+      }
+    },
+    "d2c_upd": {
+      "type": "object",
+      "required": ["t", "v"],
+      "properties": {
+        "t": { "const": "upd" },
+        "v": { "type": "object", "propertyNames": { "pattern": "^[A-Za-z0-9_]{1,15}$" }, "additionalProperties": { "$ref": "#/$defs/value" } }
+      }
+    },
+    "d2c_pts": {
+      "type": "object",
+      "required": ["t", "id", "s", "p"],
+      "properties": {
+        "t": { "const": "pts" },
+        "id": { "$ref": "#/$defs/ident" },
+        "s": { "$ref": "#/$defs/ident" },
+        "p": { "type": "array", "minItems": 1, "maxItems": 1000, "items": { "type": "array", "minItems": 2, "maxItems": 2, "prefixItems": [ { "type": "integer", "minimum": 0 }, { "type": "number" } ] } }
+      }
+    },
+    "d2c_toast": {
+      "type": "object",
+      "required": ["t", "lvl", "msg"],
+      "properties": { "t": { "const": "toast" }, "lvl": { "enum": ["info", "warn", "err"] }, "msg": { "type": "string", "maxLength": 256 } }
+    },
+    "d2c_log": {
+      "type": "object",
+      "required": ["t", "msg"],
+      "properties": {
+        "t": { "const": "log" },
+        "msg": { "type": "string", "maxLength": 1024 },
+        "id": { "$ref": "#/$defs/ident" },
+        "c": { "$ref": "#/$defs/color" },
+        "ts": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "d2c_prop": {
+      "type": "object",
+      "required": ["t", "id", "p"],
+      "properties": {
+        "t": { "const": "prop" },
+        "id": { "$ref": "#/$defs/ident" },
+        "p": { "type": "object", "minProperties": 1, "not": { "anyOf": [ { "required": ["id"] }, { "required": ["ty"] } ] } }
+      }
+    },
+    "d2c_dlg": {
+      "type": "object",
+      "required": ["t", "id"],
+      "properties": {
+        "t": { "const": "dlg" },
+        "id": { "$ref": "#/$defs/ident" },
+        "kind": { "enum": ["confirm", "prompt"] },
+        "title": { "type": "string", "maxLength": 64 },
+        "msg": { "type": "string", "maxLength": 512 },
+        "def": { "type": "string", "maxLength": 256 },
+        "timeout": { "type": "integer", "minimum": 1, "maximum": 3600 },
+        "close": { "const": true }
+      },
+      "oneOf": [ { "required": ["kind", "msg"], "not": { "required": ["close"] } }, { "required": ["close"], "not": { "required": ["kind"] } } ]
+    },
+    "d2c_sys": {
+      "type": "object",
+      "required": ["t", "cmd"],
+      "properties": {
+        "t": { "const": "sys" },
+        "cmd": { "enum": ["info", "wifi.scan", "wifi.status", "reboot", "pin.set", "revoke", "ota.begin", "ota.progress", "ota.done", "ota.abort", "ota.url"] },
+        "ok": { "type": "boolean" },
+        "msg": { "type": "string", "maxLength": 256 },
+        "chip": { "type": "string", "maxLength": 32 },
+        "fw": { "type": "string", "maxLength": 32 },
+        "repo": { "type": "string", "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$" },
+        "about": { "type": "string", "maxLength": 256 },
+        "rr": { "enum": ["ota", "button", "panic", "power", "wdt", "sw", "brownout", "other"] },
+        "heap": { "type": "integer", "minimum": 0 },
+        "heapmin": { "type": "integer", "minimum": 0 },
+        "up": { "type": "integer", "minimum": 0 },
+        "ip": { "type": "string", "maxLength": 45 },
+        "ssid": { "type": "string", "maxLength": 32 },
+        "rssi": { "type": "integer" },
+        "mac": { "type": "string", "pattern": "^([0-9a-f]{2}:){5}[0-9a-f]{2}$" },
+        "time": { "type": "integer", "minimum": 0 },
+        "clients": { "type": "integer", "minimum": 0 },
+        "ap": { "type": "array", "maxItems": 50, "items": { "type": "object", "required": ["ssid", "rssi", "enc"], "properties": { "ssid": { "type": "string", "maxLength": 32 }, "rssi": { "type": "integer" }, "enc": { "type": "boolean" } }, "additionalProperties": false } },
+        "st": { "enum": ["connecting", "connected", "failed", "ap"] },
+        "pct": { "type": "integer", "minimum": 0, "maximum": 100 }
+      },
+      "allOf": [
+        { "if": { "properties": { "cmd": { "const": "info" } } }, "then": { "required": ["chip", "fw", "heap", "up"] } },
+        { "if": { "properties": { "cmd": { "const": "wifi.scan" } } }, "then": { "required": ["ap"] } },
+        { "if": { "properties": { "cmd": { "const": "wifi.status" } } }, "then": { "required": ["st"] } },
+        { "if": { "properties": { "cmd": { "const": "ota.progress" } } }, "then": { "required": ["pct"] } },
+        { "if": { "properties": { "cmd": { "enum": ["reboot", "pin.set", "revoke", "ota.begin", "ota.done", "ota.abort", "ota.url"] } } }, "then": { "required": ["ok"] } }
+      ]
+    },
+    "d2c_err": {
+      "type": "object",
+      "required": ["t", "code", "msg"],
+      "properties": {
+        "t": { "const": "err" },
+        "code": { "type": "integer", "minimum": 1, "maximum": 10 },
+        "msg": { "type": "string", "maxLength": 128 },
+        "ref": { "type": "string", "maxLength": 16 }
+      }
+    }
+  }
+}

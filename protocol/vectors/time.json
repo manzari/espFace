@@ -1,0 +1,6 @@
+[
+  { "name": "client time with tz", "dir": "c2d", "msg": { "t": "time", "unix": 1728700000, "tz": 120 } },
+  { "name": "client time utc", "dir": "c2d", "msg": { "t": "time", "unix": 1728700000 } },
+  { "name": "client time before 2020 rejected", "dir": "c2d", "valid": false, "msg": { "t": "time", "unix": 1000 } },
+  { "name": "client time tz out of range", "dir": "c2d", "valid": false, "msg": { "t": "time", "unix": 1728700000, "tz": 900 } }
+]

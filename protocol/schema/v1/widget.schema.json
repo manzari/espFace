@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://espface.dev/schema/v1/widget.schema.json",
+  "title": "espFace widget v1",
+  "type": "object",
+  "required": ["id", "ty"],
+  "properties": {
+    "id": { "$ref": "#/$defs/ident" },
+    "ty": { "type": "string" },
+    "lbl": { "type": "string", "maxLength": 64 },
+    "grp": { "$ref": "#/$defs/ident" },
+    "page": { "$ref": "#/$defs/ident" },
+    "row": { "$ref": "#/$defs/ident" },
+    "size": { "$ref": "#/$defs/size" },
+    "sq": { "type": "boolean" },
+    "dis": { "type": "boolean" },
+    "vis": { "type": "boolean" },
+    "hint": { "type": "string", "maxLength": 200 },
+    "icon": { "$ref": "#/$defs/icon" },
+    "ro": { "type": "boolean" }
+  },
+  "allOf": [
+    { "if": { "properties": { "ty": { "const": "label" } } }, "then": { "properties": { "unit": { "$ref": "#/$defs/unit" }, "fmt": { "type": "string", "maxLength": 16 } } } },
+    { "if": { "properties": { "ty": { "const": "button" } } }, "then": { "properties": { "color": { "$ref": "#/$defs/color" }, "hold": { "type": "boolean" } } } },
+    { "if": { "properties": { "ty": { "const": "switch" } } }, "then": { "properties": { "on": { "type": "string", "maxLength": 16 }, "off": { "type": "string", "maxLength": 16 }, "color": { "$ref": "#/$defs/color" } } } },
+    { "if": { "properties": { "ty": { "const": "slider" } } }, "then": { "properties": { "min": { "type": "number" }, "max": { "type": "number" }, "step": { "type": "number", "exclusiveMinimum": 0 }, "unit": { "$ref": "#/$defs/unit" }, "color": { "$ref": "#/$defs/color" } } } },
+    { "if": { "properties": { "ty": { "const": "number" } } }, "then": { "properties": { "min": { "type": "number" }, "max": { "type": "number" }, "step": { "type": "number", "exclusiveMinimum": 0 }, "unit": { "$ref": "#/$defs/unit" }, "spin": { "type": "boolean" } } } },
+    { "if": { "properties": { "ty": { "const": "text" } } }, "then": { "properties": { "maxlen": { "type": "integer", "minimum": 1, "maximum": 1024 }, "secret": { "type": "boolean" }, "re": { "type": "string", "maxLength": 128 } } } },
+    { "if": { "properties": { "ty": { "const": "textarea" } } }, "then": { "properties": { "maxlen": { "type": "integer", "minimum": 1, "maximum": 4096 }, "rows": { "type": "integer", "minimum": 1, "maximum": 40 } } } },
+    { "if": { "properties": { "ty": { "const": "select" } } }, "then": { "required": ["opts"], "properties": { "opts": { "$ref": "#/$defs/opts" }, "style": { "enum": ["list", "seg"] } } } },
+    { "if": { "properties": { "ty": { "const": "flags" } } }, "then": { "required": ["opts"], "properties": { "opts": { "$ref": "#/$defs/opts", "maxItems": 32 } } } },
+    { "if": { "properties": { "ty": { "const": "datetime" } } }, "then": { "properties": { "mode": { "enum": ["date", "time", "datetime"] } } } },
+    { "if": { "properties": { "ty": { "const": "joystick" } } }, "then": { "properties": { "center": { "type": "boolean" }, "exp": { "type": "boolean" } } } },
+    { "if": { "properties": { "ty": { "const": "gauge" } } }, "then": { "properties": { "min": { "type": "number" }, "max": { "type": "number" }, "unit": { "$ref": "#/$defs/unit" }, "style": { "enum": ["arc", "round", "linear"] }, "zones": { "type": "array", "maxItems": 8, "items": { "type": "object", "required": ["from", "to", "color"], "properties": { "from": { "type": "number" }, "to": { "type": "number" }, "color": { "$ref": "#/$defs/color" } }, "additionalProperties": false } } } } },
+    { "if": { "properties": { "ty": { "const": "progress" } } }, "then": { "properties": { "min": { "type": "number" }, "max": { "type": "number" }, "center": { "type": "boolean" }, "color": { "$ref": "#/$defs/color" } } } },
+    { "if": { "properties": { "ty": { "const": "display" } } }, "then": { "properties": { "digits": { "type": "integer", "minimum": 1, "maximum": 16 }, "unit": { "$ref": "#/$defs/unit" } } } },
+    { "if": { "properties": { "ty": { "const": "led" } } }, "then": { "properties": { "color": { "$ref": "#/$defs/color" }, "rgb": { "type": "boolean" } } } },
+    { "if": { "properties": { "ty": { "const": "chart" } } }, "then": { "required": ["series"], "properties": { "series": { "type": "array", "minItems": 1, "maxItems": 8, "items": { "type": "object", "required": ["id"], "properties": { "id": { "$ref": "#/$defs/ident" }, "lbl": { "type": "string", "maxLength": 32 }, "color": { "$ref": "#/$defs/color" } }, "additionalProperties": false } }, "win": { "type": "integer", "minimum": 10, "maximum": 86400 }, "unit": { "$ref": "#/$defs/unit" }, "style": { "enum": ["line", "bar", "area"] }, "legend": { "type": "boolean" }, "vals": { "type": "boolean" } } } },
+    { "if": { "properties": { "ty": { "const": "log" } } }, "then": { "properties": { "rows": { "type": "integer", "minimum": 1, "maximum": 40 }, "cap": { "type": "integer", "minimum": 10, "maximum": 5000 } } } },
+    { "if": { "properties": { "ty": { "const": "table" } } }, "then": { "required": ["cols"], "properties": { "cols": { "type": "array", "minItems": 1, "maxItems": 12, "items": { "type": "object", "properties": { "lbl": { "type": "string", "maxLength": 32 }, "w": { "type": "number", "exclusiveMinimum": 0 }, "align": { "enum": ["left", "center", "right"] } }, "additionalProperties": false } } } } },
+    { "if": { "properties": { "ty": { "enum": ["image", "stream"] } } }, "then": { "properties": { "src": { "type": "string", "maxLength": 512 } } } },
+    { "if": { "properties": { "ty": { "const": "clock" } } }, "then": { "properties": { "fmt": { "type": "string", "maxLength": 32 } } } },
+    { "if": { "properties": { "ty": { "const": "map" } } }, "then": { "properties": { "zoom": { "type": "integer", "minimum": 1, "maximum": 20 } } } },
+    { "if": { "properties": { "ty": { "const": "textblock" } } }, "then": { "properties": { "text": { "type": "string", "maxLength": 2048 } } } },
+    { "if": { "properties": { "ty": { "const": "group" } } }, "then": { "properties": { "fold": { "type": "boolean" } } } }
+  ],
+  "$defs": {
+    "ident": { "type": "string", "pattern": "^[A-Za-z0-9_]{1,15}$" },
+    "color": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
+    "unit": { "type": "string", "maxLength": 8 },
+    "icon": { "type": "string", "pattern": "^[a-z0-9_]{1,32}$" },
+    "opts": { "type": "array", "minItems": 1, "maxItems": 64, "items": { "type": "string", "maxLength": 32 } },
+    "size": {
+      "oneOf": [
+        { "type": "number", "exclusiveMinimum": 0, "maximum": 12 },
+        { "type": "array", "minItems": 2, "maxItems": 2, "prefixItems": [ { "type": "number", "exclusiveMinimum": 0, "maximum": 12 }, { "type": "integer", "minimum": 0, "maximum": 2000 } ] }
+      ]
+    },
+    "types": {
+      "enum": ["label", "button", "switch", "slider", "number", "text", "textarea", "select", "flags", "color", "datetime", "joystick", "dpad", "gauge", "progress", "display", "led", "chart", "log", "table", "image", "stream", "clock", "map", "textblock", "header", "group", "page", "row", "spacer"]
+    }
+  }
+}
