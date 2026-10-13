@@ -3,3 +3,4 @@ node_modules/
 .pio/
 firmware/test_output/
 firmware/footprint.md
+.claude/worktrees/
