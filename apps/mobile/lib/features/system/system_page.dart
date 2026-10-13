@@ -7,6 +7,9 @@ import '../../app/providers.dart';
 import '../../app/theme.dart';
 import '../../core/proto/values.dart';
 import '../../core/session/session.dart';
+import '../../core/transport/transport.dart';
+import '../../core/transport/usb_serial_transport.dart';
+import '../devices/devices_repository.dart';
 import '../render/common.dart';
 import '../render/widgets/log_table.dart';
 import 'ota.dart';
@@ -37,7 +40,7 @@ class SystemPage extends ConsumerWidget {
               OtaSection(session: bundle.session),
               const ReleaseSection(),
               const ConsoleSection(),
-              ConnectionSection(session: bundle.session),
+              ConnectionSection(deviceKey: deviceKey, bundle: bundle),
             ],
           ),
         ),
@@ -373,37 +376,44 @@ class _OtaSectionState extends State<OtaSection> {
   }
 
   @override
-  Widget build(BuildContext context) => StoreListener(
-        keyName: 'sys',
-        builder: (c) {
-          final store = c.store;
-          final push = store.hasCap('ota') && widget.session.supportsBinary;
-          final byUrl = store.hasCap('otaurl');
-          final ota = store.ota;
-          final p = _push;
-          final cs = Theme.of(c).colorScheme;
-          return Section(
-            title: 'Firmware update',
-            icon: Icons.upload,
-            enabled: push || byUrl,
-            disabledNote: 'OTA not available on this device or transport.',
-            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              Row(children: [
-                FilledButton.tonalIcon(onPressed: push && !(p?.running ?? false) ? _pickAndPush : null, icon: const Icon(Icons.file_open), label: const Text('Upload .bin')),
-                const SizedBox(width: 8),
-                if (p?.running ?? false) OutlinedButton(onPressed: p!.abort, child: const Text('Abort')),
-                if (_file != null) ...[const SizedBox(width: 8), Expanded(child: Text(_file!, overflow: TextOverflow.ellipsis))],
-              ]),
-              if (!push && store.hasCap('ota')) Text('Binary upload needs a WiFi connection.', style: TextStyle(color: cs.onSurfaceVariant)),
-              if (p != null && (p.running || ota != null)) ...[
-                const SizedBox(height: 8),
-                LinearProgressIndicator(value: ota != null ? ota.pct / 100 : p.sentFraction),
-                const SizedBox(height: 4),
-                Text(ota != null ? 'device ${ota.pct}%' : 'sent ${(p.sentFraction * 100).round()}%'),
-              ],
-              if (p?.error != null) Text(p!.error!, style: TextStyle(color: cs.error)),
-              if (ota?.done == true) Text(ota!.ok == true ? 'Update done, device reboots.' : 'Update failed: ${ota.msg ?? 'unknown error'}', style: TextStyle(color: ota.ok == true ? cs.primary : cs.error)),
-              const Divider(height: 24),
+  Widget build(BuildContext context) => ListenableBuilder(
+        listenable: widget.session,
+        builder: (context, _) => StoreListener(
+          keyName: 'sys',
+          builder: (c) {
+            final store = c.store;
+            final binary = widget.session.supportsBinary;
+            final push = store.hasCap('ota') && binary;
+            final byUrl = store.hasCap('otaurl');
+            final ota = store.ota;
+            final p = _push;
+            final cs = Theme.of(c).colorScheme;
+            return Section(
+              title: 'Firmware update',
+              icon: Icons.upload,
+              enabled: push || byUrl,
+              disabledNote: 'OTA not available on this device or transport.',
+              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                // The push half only exists on a transport with binary frames (WiFi); BLE and serial keep ota.url.
+                if (!binary)
+                  Text('OTA push needs WiFi.', style: TextStyle(color: cs.onSurfaceVariant))
+                else ...[
+                  Row(children: [
+                    FilledButton.tonalIcon(onPressed: push && !(p?.running ?? false) ? _pickAndPush : null, icon: const Icon(Icons.file_open), label: const Text('Upload .bin')),
+                    const SizedBox(width: 8),
+                    if (p?.running ?? false) OutlinedButton(onPressed: p!.abort, child: const Text('Abort')),
+                    if (_file != null) ...[const SizedBox(width: 8), Expanded(child: Text(_file!, overflow: TextOverflow.ellipsis))],
+                  ]),
+                  if (p != null && (p.running || ota != null)) ...[
+                    const SizedBox(height: 8),
+                    LinearProgressIndicator(value: ota != null ? ota.pct / 100 : p.sentFraction),
+                    const SizedBox(height: 4),
+                    Text(ota != null ? 'device ${ota.pct}%' : 'sent ${(p.sentFraction * 100).round()}%'),
+                  ],
+                  if (p?.error != null) Text(p!.error!, style: TextStyle(color: cs.error)),
+                  if (ota?.done == true) Text(ota!.ok == true ? 'Update done, device reboots.' : 'Update failed: ${ota.msg ?? 'unknown error'}', style: TextStyle(color: ota.ok == true ? cs.primary : cs.error)),
+                ],
+                const Divider(height: 24),
               TextField(controller: _url, enabled: byUrl, decoration: const InputDecoration(labelText: 'Update from URL (http/https .bin)', border: OutlineInputBorder()), keyboardType: TextInputType.url),
               const SizedBox(height: 8),
               Align(
@@ -422,7 +432,8 @@ class _OtaSectionState extends State<OtaSection> {
               ),
             ]),
           );
-        },
+          },
+        ),
       );
 }
 
@@ -507,15 +518,59 @@ class ConsoleSection extends StatelessWidget {
       );
 }
 
-class ConnectionSection extends StatelessWidget {
-  const ConnectionSection({super.key, required this.session});
-  final Session session;
+/// Active transport and state, the per-device transport pin (auto = WiFi -> BLE -> serial), USB baud, forget pairing.
+class ConnectionSection extends ConsumerWidget {
+  const ConnectionSection({super.key, required this.deviceKey, required this.bundle});
+  final String deviceKey;
+  final SessionBundle bundle;
+
   @override
-  Widget build(BuildContext context) => Section(
+  Widget build(BuildContext context, WidgetRef ref) {
+    final session = bundle.session;
+    final dev = ref.watch(devicesProvider.select((l) => l.where((d) => d.key == deviceKey).firstOrNull));
+    final repo = ref.read(devicesProvider.notifier);
+    final serial = ref.watch(serialSupportedProvider);
+    final kinds = dev?.candidates(serialSupported: serial) ?? const [];
+    final configured = dev?.configured.where((k) => serial || (k != TransportKind.usb && k != TransportKind.bt)).toList() ?? const [];
+    final cs = Theme.of(context).colorScheme;
+    return ListenableBuilder(
+      listenable: Listenable.merge([session, bundle.chooser.active]),
+      builder: (context, _) => Section(
         title: 'Connection',
         icon: Icons.bolt,
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          KV([('Transport', session.label), ('State', session.state.name)]),
+          KV([
+            ('Transport', '${bundle.chooser.active.value?.label ?? '-'} · ${session.label}'),
+            ('State', session.state.name),
+            ('Binary frames', session.supportsBinary ? 'yes (OTA push)' : 'no (OTA by URL only)'),
+            if (dev != null) ('Addresses', dev.addressSummary),
+          ]),
+          if (configured.length > 1) ...[
+            const SizedBox(height: 8),
+            Text('Preferred transport', style: Theme.of(context).textTheme.labelLarge),
+            const SizedBox(height: 4),
+            SegmentedButton<TransportKind?>(
+              segments: [
+                const ButtonSegment<TransportKind?>(value: null, label: Text('Auto')),
+                for (final k in configured) ButtonSegment<TransportKind?>(value: k, label: Text(k.label)),
+              ],
+              selected: {dev?.preferred},
+              showSelectedIcon: false,
+              onSelectionChanged: (s) => repo.setPreferred(deviceKey, s.first),
+            ),
+            Text(dev?.preferred == null ? 'Auto tries ${kinds.map((k) => k.label).join(', then ')}.' : 'Only ${dev!.preferred!.label} is used.', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12)),
+          ],
+          if (dev?.usbPort != null) ...[
+            const SizedBox(height: 8),
+            Row(children: [
+              const Expanded(child: Text('USB baud rate')),
+              DropdownButton<int>(
+                value: UsbSerialTransport.bauds.contains(dev!.usbBaud) ? dev.usbBaud : 115200,
+                items: [for (final b in UsbSerialTransport.bauds) DropdownMenuItem(value: b, child: Text('$b'))],
+                onChanged: (b) => b == null ? null : repo.setBaud(deviceKey, b),
+              ),
+            ]),
+          ],
           const SizedBox(height: 8),
           Align(
             alignment: Alignment.centerLeft,
@@ -529,5 +584,7 @@ class ConnectionSection extends StatelessWidget {
             ),
           ),
         ]),
-      );
+      ),
+    );
+  }
 }

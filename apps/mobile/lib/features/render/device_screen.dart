@@ -4,7 +4,10 @@ import 'package:go_router/go_router.dart';
 
 import '../../app/providers.dart';
 import '../../app/theme.dart';
+import '../../core/platform/app_settings.dart';
 import '../../core/session/session.dart';
+import '../../core/transport/transport.dart';
+import '../../core/transport/transport_chooser.dart';
 import '../devices/devices_repository.dart';
 import 'common.dart';
 import 'icons.dart';
@@ -82,6 +85,8 @@ class _DeviceScreenState extends ConsumerState<DeviceScreen> {
                       _ConnDot(state: session.state),
                       const SizedBox(width: 8),
                       Expanded(child: Text(name, overflow: TextOverflow.ellipsis)),
+                      TransportChip(chooser: bundle.chooser),
+                      const SizedBox(width: 8),
                       if (store.device?.proj != null) Text(store.device!.proj!, style: Theme.of(c).textTheme.labelMedium?.copyWith(color: Theme.of(c).colorScheme.onSurfaceVariant)),
                     ]),
                     actions: [IconButton(icon: const Icon(Icons.settings), tooltip: 'System and settings', onPressed: () => context.go('/d/${Uri.encodeComponent(widget.deviceKey)}/system'))],
@@ -111,7 +116,22 @@ class _DeviceScreenState extends ConsumerState<DeviceScreen> {
                       _Banner(session: session),
                       Expanded(
                         child: current == null
-                            ? Center(child: Text(session.state == ConnState.ready ? 'This device has no widgets.' : 'Waiting for the device', style: TextStyle(color: Theme.of(c).colorScheme.onSurfaceVariant)))
+                            ? ValueListenableBuilder<bool>(
+                                valueListenable: bundle.chooser.receiving,
+                                builder: (c, receiving, _) => Center(
+                                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                                    if (receiving) const Padding(padding: EdgeInsets.only(bottom: 12), child: CircularProgressIndicator()),
+                                    Text(
+                                      receiving
+                                          ? 'Receiving the UI over ${bundle.chooser.active.value?.label ?? 'BLE'}'
+                                          : session.state == ConnState.ready
+                                              ? 'This device has no widgets.'
+                                              : 'Waiting for the device',
+                                      style: TextStyle(color: Theme.of(c).colorScheme.onSurfaceVariant),
+                                    ),
+                                  ]),
+                                ),
+                              )
                             : PageBody(key: ValueKey('page:${current.id}'), page: current, wide: wide),
                       ),
                     ]),
@@ -132,6 +152,43 @@ class _DeviceScreenState extends ConsumerState<DeviceScreen> {
       ),
     );
   }
+}
+
+/// Which medium the session is on (WiFi/BLE/USB/Bluetooth) plus a spinner while a chunked message arrives.
+class TransportChip extends StatelessWidget {
+  const TransportChip({super.key, required this.chooser});
+  final TransportChooser chooser;
+
+  static IconData iconFor(TransportKind k) => switch (k) {
+        TransportKind.wifi => Icons.wifi,
+        TransportKind.ble => Icons.bluetooth_searching,
+        TransportKind.usb => Icons.usb,
+        TransportKind.bt => Icons.bluetooth,
+      };
+
+  @override
+  Widget build(BuildContext context) => ValueListenableBuilder<TransportKind?>(
+        valueListenable: chooser.active,
+        builder: (c, kind, _) {
+          if (kind == null) return const SizedBox.shrink();
+          final cs = Theme.of(c).colorScheme;
+          return ValueListenableBuilder<bool>(
+            valueListenable: chooser.receiving,
+            builder: (c, receiving, _) => Tooltip(
+              message: receiving ? 'receiving over ${kind.label}' : 'connected over ${kind.label}',
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(color: cs.secondaryContainer, borderRadius: BorderRadius.circular(12)),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  receiving ? const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2)) : Icon(iconFor(kind), size: 14, color: cs.onSecondaryContainer),
+                  const SizedBox(width: 4),
+                  Text(kind.label, style: Theme.of(c).textTheme.labelSmall?.copyWith(color: cs.onSecondaryContainer)),
+                ]),
+              ),
+            ),
+          );
+        },
+      );
 }
 
 class _ConnDot extends StatelessWidget {
@@ -158,7 +215,9 @@ class _Banner extends StatelessWidget {
         listenable: session,
         builder: (c, _) {
           final cs = Theme.of(c).colorScheme;
+          final denied = session.lastError is PermissionDenied;
           final (text, bg) = switch (session.state) {
+            ConnState.offline when denied => ('${(session.lastError as PermissionDenied).what} permission denied. Allow it in the app settings to connect.', cs.errorContainer),
             ConnState.offline => ('Connection lost, reconnecting', cs.errorContainer),
             ConnState.connecting => ('Connecting to ${session.label}', cs.surfaceContainerHighest),
             ConnState.stopped => ('Disconnected', cs.surfaceContainerHighest),
@@ -169,7 +228,13 @@ class _Banner extends StatelessWidget {
             color: bg,
             child: InkWell(
               onTap: session.state == ConnState.stopped ? session.start : null,
-              child: Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8), child: Text(text, style: Theme.of(c).textTheme.bodySmall)),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Row(children: [
+                  Expanded(child: Text(text, style: Theme.of(c).textTheme.bodySmall)),
+                  if (denied && session.state == ConnState.offline) TextButton(onPressed: openAppSettings, child: const Text('Settings')),
+                ]),
+              ),
             ),
           );
         },

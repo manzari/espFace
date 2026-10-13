@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
 import '../../core/proto/messages.dart';
+import '../../core/transport/transport.dart';
 import 'device.dart';
 
 const _key = 'espface.devices';
@@ -42,13 +43,13 @@ class DevicesNotifier extends Notifier<List<SavedDevice>> {
     return null;
   }
 
-  /// Adds or updates (same key) and returns the stored record.
+  /// Adds, or merges the addresses into the record with the same key, and returns the stored record.
   SavedDevice upsert(SavedDevice d) {
     if (locked) return byKey(d.key) ?? d;
     final i = state.indexWhere((x) => x.key == d.key);
     if (i >= 0) {
       final n = [...state];
-      n[i] = d.copyWith(order: state[i].order);
+      n[i] = state[i].merge(d);
       _save(n);
       return n[i];
     }
@@ -69,12 +70,34 @@ class DevicesNotifier extends Notifier<List<SavedDevice>> {
 
   SavedDevice addManual(String host) => upsert(SavedDevice(key: SavedDevice.keyFor(host: host), host: host, name: host));
 
+  /// [protocolId] comes from the INFO characteristic when it could be read; it makes the key match the WiFi record.
+  SavedDevice addBle(String bleId, String name, {String? protocolId}) =>
+      upsert(SavedDevice(key: SavedDevice.keyFor(id: protocolId, bleId: bleId), bleId: bleId, id: protocolId, name: name.isEmpty ? bleId : name));
+
+  SavedDevice addUsb(String port, String name, {int baud = 115200}) =>
+      upsert(SavedDevice(key: SavedDevice.keyFor(usbPort: port), usbPort: port, usbBaud: baud, name: name.isEmpty ? port : name));
+
+  SavedDevice addBt(String address, String name) => upsert(SavedDevice(key: SavedDevice.keyFor(btAddress: address), btAddress: address, name: name.isEmpty ? address : name));
+
   void remove(String key) {
     if (locked) return;
     _save(state.where((d) => d.key != key).toList());
   }
 
-  /// Updates name/proj/icon/fw from the device hello (host stays).
+  void _patch(String key, SavedDevice Function(SavedDevice) f) {
+    final i = state.indexWhere((x) => x.key == key);
+    if (i < 0) return;
+    final n = [...state];
+    n[i] = f(state[i]);
+    _save(n);
+  }
+
+  /// Pins one transport (null = automatic WiFi -> BLE -> serial).
+  void setPreferred(String key, TransportKind? kind) => _patch(key, (d) => d.copyWith(preferred: kind));
+
+  void setBaud(String key, int baud) => _patch(key, (d) => d.copyWith(usbBaud: baud));
+
+  /// Updates name/proj/icon/fw from the device hello (addresses stay).
   void learn(String key, HelloMsg h) {
     final i = state.indexWhere((x) => x.key == key);
     if (i < 0) return;
