@@ -38,7 +38,7 @@ espFace/
     src/
     examples/
     test/              # PlatformIO native unit tests (host)
-    tools/             # embed-web.py: builds web bundle -> src/web_embed.h
+    tools/             # embed-web.py: gzips the web bundle -> src/web/embed.h; ci-build.sh footprint matrix
   web/                 # TypeScript renderer (Vite + Preact)
   apps/mobile/         # Flutter app
   tools/fake-device/   # Node implementation of the device side for client dev/CI
@@ -256,15 +256,15 @@ Bootstrap page: loads `https://<RENDERER_HOST>/r/1/app.js` with a 5 s timeout; o
 
 ## 5. Web renderer (web/)
 
-- Vite + Preact + TypeScript, target < 80 KB gzipped incl. uPlot for charts. No framework CSS; small hand-written stylesheet, light/dark via `prefers-color-scheme`, user theme settings (accent color, font scale, wide mode) in `localStorage`.
+- Vite + Preact + TypeScript, target < 80 KB gzipped incl. uPlot for charts (phase 2 result: `app.js` 47.4 KB + `app.css` 3.6 KB gzipped, 51 KB total; Leaflet for the map widget is lazy-loaded from cdnjs and not counted). No framework CSS; small hand-written stylesheet, light/dark via `prefers-color-scheme`, user theme settings (accent color, font scale, wide mode) in `localStorage`.
 - Single `app.js` + `app.css`, loaded by the bootstrap page or served embedded from `/r/1/`.
 - Connects to `ws://<location.host>/ws` (or `?host=` param for dev against fake device).
 - Modules: `transport/ws.ts`, `proto/` (types generated from protocol JSON schema via `json-schema-to-typescript`), `store.ts` (values, ui rev, chart and log ring buffers, prop merges, page state), `widgets/*.tsx` one per type, `pages/` (main with page tabs, WiFi, OTA via `POST /update` multipart or `ota.url`, info incl. reboot reason and release check, pairing PIN dialog, device dialogs).
 - Icons: Material Symbols subset as inline SVG sprite, same names as the Flutter app.
-- Token persisted in `localStorage` keyed by device id.
+- Token persisted in `localStorage` keyed by device id. PIN HMAC via Web Crypto where available; device pages are plain http (no `crypto.subtle` in insecure contexts), so a pure-JS SHA-256 fallback is bundled.
 - `/r/1/flash`: WebSerial flashing page (esptool-js) for blank ESPs, hosted site only (secure context required), fed by a GitHub release or a local `.bin`. Not embedded.
 - Hosting: static site on Coolify at `https://<renderer-host>/r/<major>/…` with immutable caching and CORS `*`. Breaking renderer changes bump the major path so old firmware keeps working.
-- Build runs in Docker (`docker/web.Dockerfile`), output also consumed by `firmware/tools/embed-web.py`.
+- Build runs in Docker (`server/renderer/Dockerfile`), output also consumed by `firmware/tools/embed-web.py`.
 - Tests: Vitest for store/codec against protocol vectors; Playwright smoke test against the fake device.
 
 ## 6. Flutter app (apps/mobile/)
@@ -305,7 +305,7 @@ Node + `ws` implementing the device side of the protocol with a demo UI using ev
 | 0 Protocol (done 2026-10-13) | `PROTOCOL.md`, JSON schema v1 incl. all widget types, `prop`, `dlg`, `time`, HMAC auth; test vectors; fake device | – |
 | 1 Firmware core (done 2026-10-13) | begin/loop, WS transport, UI builder with pages/rows/groups, upd/set/ev, HMAC PIN auth (per UI), persist, prop/show-hide, dialogs, client clock, active-page filtering, multiple UIs, connect/disconnect/reboot callbacks, `face.delay`, base widgets (label, button, switch, slider, number, text, select, gauge, progress, led, chart, header, group, page, row, spacer), captive AP + bootstrap page, `Minimal` + `FullDemo` examples, native tests, CI footprint report | 0 |
 | 1b Firmware extended widgets (done 2026-10-13) | textarea, flags, color, datetime, joystick (`onMove`), dpad, hold button, spin, regex, display, log (+history replay), table (`setRows`), image, stream, clock (device time pushed every minute), map (`setPoints`), textblock, gauge styles, chart styles/legend, switch labels, segmented select, RGB led, bipolar progress, icons; `FullDemo` I/O page, native tests, schema-checked output | 1 |
-| 2 Web renderer | all widgets, pages, rows, dialogs, prop merges, pairing dialog, charts/logs, theme settings, hosting on Coolify, embed tooling + `EmbeddedWeb` example | 0 (dev against fake device), 1 for e2e |
+| 2 Web renderer (done 2026-10-13) | all widgets, pages, rows, dialogs, prop merges, pairing dialog, charts/logs, theme settings, hosting on Coolify, embed tooling + `EmbeddedWeb` example | 0 (dev against fake device), 1 for e2e |
 | 3 App WiFi | Flutter app: discovery, pairing, renderer for all widgets, pages, dialogs, charts/logs, device groups and icons, theme settings, white-label flavor; Android debug builds in Docker | 0 |
 | 4 System pages | WiFi provisioning, OTA push + `ota.url`, info with version/about/reboot reason, optional GitHub release check, NTP helper, direct ntfy, reboot, PIN change in firmware + web + app; WebSerial flash page on the hosted site | 1,2,3 |
 | 5 BLE + streams | NimBLE transport + chunking, StreamTransport (UART/USB CDC/BluetoothSerial) in firmware; BLE, USB OTG and BT Classic transports in app; `BleOnly`, `SerialOnly`, `Provisioning` examples | 1,3 |

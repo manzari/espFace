@@ -8,7 +8,8 @@
 
 namespace espface {
 
-// WebSocket transport on ESP-IDF esp_http_server. Also serves the bootstrap page and captive-portal probes.
+// WebSocket transport on ESP-IDF esp_http_server. Also serves the bootstrap page, captive-portal probes and,
+// with ESPFACE_EMBED_WEB, the gzipped renderer at /r/1/app.js and /r/1/app.css.
 class WsTransport : public Transport {
  public:
   const char* name() const override { return "ws"; }
@@ -29,6 +30,9 @@ class WsTransport : public Transport {
   struct Event { EvType type; int fd; uint8_t* data; size_t len; };
   static esp_err_t wsHandler(httpd_req_t* req);
   static esp_err_t pageHandler(httpd_req_t* req);
+#ifdef ESPFACE_EMBED_WEB
+  static esp_err_t embedHandler(httpd_req_t* req);
+#endif
   static void closeFn(httpd_handle_t hd, int fd);
   void post(EvType t, int fd, uint8_t* data = nullptr, size_t len = 0);
   int slotOf(int fd) const;

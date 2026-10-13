@@ -1,0 +1,8 @@
+**/node_modules
+**/.pio
+**/dist
+**/test-results
+**/playwright-report
+.git
+.claude
+.idea
