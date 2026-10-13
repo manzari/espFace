@@ -1,6 +1,6 @@
 # espFace mobile app (Flutter)
 
-Native Android/iOS renderer for espFace protocol v1 (`protocol/PROTOCOL.md`). Phase 3 scope: WiFi/WebSocket transport, discovery, PIN pairing, all 30 widget types, pages, dialogs, toasts, charts/logs, device groups, theme settings, white-label flavors and the device system pages (info, WiFi provisioning, OTA push/URL, PIN, revoke, reboot, optional GitHub release check). BLE and serial transports arrive in phase 5 behind the same `Transport` interface.
+Native Android/iOS renderer for espFace protocol v1 (`protocol/PROTOCOL.md`). Phase 3 scope: WiFi/WebSocket transport, discovery, PIN pairing, all 30 widget types, pages, dialogs, toasts, charts/logs, device groups, theme settings, white-label flavors and the device system pages (info, WiFi provisioning, OTA push/URL, PIN, revoke, reboot, optional GitHub release check). Phase 5 adds BLE, USB OTG serial and Bluetooth Classic SPP behind the same `Transport` interface, with per-device transport fallback.
 
 ## Build and test (Docker only)
 
@@ -36,6 +36,25 @@ The mirror is only a fallback repository (Google first), the NDK is needed by th
 
 Run on a device: `scripts/flutter.sh run` needs USB passthrough into the container; the usual path is installing the APK (`adb install build/app/outputs/flutter-apk/app-debug.apk`) from a host that has adb.
 
+## Transports
+
+All media speak the same JSON protocol; the `Session` never knows which one it is on. A saved device can carry several addresses and the connection tries them in this order unless the user pins one in the device's System page ("Preferred transport"): a medium that fails to open is skipped for the next attempt, one that opened and then dropped is retried first.
+
+| Transport | Package | Address | Binary frames | Notes |
+|---|---|---|---|---|
+| WiFi | `web_socket_channel` | `host[:port]` | yes (OTA push) | mDNS discovery, manual host, QR |
+| BLE | `flutter_blue_plus` 1.36.8 | platform device id | no | scan filtered on service `0000ea00-…`, INFO characteristic read on add (`name\0id`), MTU 512 requested, write-without-response, `[seq][flags][payload]` chunking from `core/transport/ble_framer.dart` (mirror of the firmware `BleFramer.h`), progress chip while a chunked `ui` arrives |
+| USB OTG serial | `usb_serial` 0.5.2 (vendored, see below) | `vid:pid` (hex) | no | Android only. 8N1, baud per device (default 115200, selectable in the add sheet and the System page). Android asks for USB permission on first open; adapters listed in `res/xml/device_filter.xml` (Espressif, CP210x, CH340/CH9102, FTDI) also offer the app when plugged in |
+| Bluetooth Classic SPP | `flutter_blue_classic` 0.1.1 | MAC | no | Android only, device must be paired in the system settings first; the add sheet lists paired devices |
+
+Per-transport limits (PROTOCOL.md 2): BLE and streams have no binary frames, so the OTA section hides the push half ("OTA push needs WiFi") and keeps `ota.url`; the firmware answers `ota.begin` with err 8 there anyway. C→D messages are capped at 2048 bytes by the device; the app accepts up to 64 KB per message/line on BLE and streams (the `ui` can exceed 4 KB). Stream lines that are not a JSON object (boot ROM output, log lines) are dropped by `LineFramer`. BLE: a seq gap drops the partial message, a duplicate packet is ignored, an oversize message is skipped to its last chunk (same rules as the firmware).
+
+Package choices, for the record: `flutter_blue_plus` 2.x switched to a licence that charges for-profit use, so the app pins the last BSD-3 release (1.36.8, Android plugin 7.0.4). `flutter_bluetooth_serial` (2021) and `usb_serial` 0.5.2 (2024) still call `jcenter()`, which Gradle 9 removed; the SPP side uses the maintained `flutter_blue_classic` instead and `usb_serial` is vendored under `third_party/usb_serial/` (MIT) with only `android/build.gradle` rewritten for AGP 9. `permission_handler` 13 needs Android platform 37 which the image lacks, so permissions are left to `flutter_blue_plus` (it requests them at scan/connect time) and a denial is surfaced as `PermissionDenied` with a "Settings" button that opens the app's settings page through a 10-line method channel in `MainActivity.kt`.
+
+Permissions (Android): `BLUETOOTH_SCAN` (`neverForLocation`) and `BLUETOOTH_CONNECT` on 12+, `BLUETOOTH`/`BLUETOOTH_ADMIN`/`ACCESS_FINE_LOCATION` with `maxSdkVersion=30` for older releases, `android.hardware.usb.host` feature (not required). iOS: the existing `NSBluetoothAlwaysUsageDescription`; BLE background mode is not needed (the app only talks to devices while open). USB and SPP sections are hidden on iOS (`serialSupportedProvider`).
+
+BLE, USB and SPP radio behaviour is not covered by CI (no hardware in Docker); the transports are tested against fakes (`test/ble_transport_test.dart` runs a session through a fake GATT layer that executes the firmware-side chunker, `test/stream_transport_test.dart` through an in-memory serial pipe).
+
 ## White-label builds
 
 Everything is a `--dart-define`; no fork needed:
@@ -57,16 +76,24 @@ scripts/flutter.sh build apk --debug --dart-define=ESPFACE_APP_NAME=AcmeCtl --da
 ```
 lib/
   main.dart                      ProviderScope + SharedPreferences bootstrap
-  app/                           MaterialApp.router, go_router routes, Material 3 theme (dynamic color, accent, font scale, wide), settings page, Flavor
-  core/transport/                Transport interface + WsTransport (BLE/stream come in phase 5)
+  app/                           MaterialApp.router, go_router routes, Material 3 theme (dynamic color, accent, font scale, wide), settings page, Flavor, session provider + transport factory
+  core/transport/                Transport interface, WsTransport, BleTransport (+ ble_gatt.dart: GATT abstraction over flutter_blue_plus, ble_framer.dart), StreamTransport (+ line_framer.dart) with UsbSerialTransport and BtClassicTransport, TransportChooser (fallback order / pin)
+  core/platform/                 app settings deep link (method channel)
   core/proto/                    hand-written message models (HelloMsg, UiMsg/WidgetDef, ...), codec, C2d builders, HMAC-SHA256, value formatting
   core/session/                  Session state machine (hello -> auth -> time, reconnect/backoff, lockout), TokenStore (flutter_secure_storage)
-  features/devices/              SavedDevice list (shared_preferences, grouped by proj, reorder), mDNS discovery (nsd), QR scan (mobile_scanner), add sheet
-  features/render/               UiStore (immutable widget model, per-key listeners, chart/log ring buffers, dialogs, toasts, layout), one widget per `ty`, pages, overlays
-  features/system/               system page sections (info, WiFi, security, reboot, OTA push + URL, release check, console, connection), OtaPush, release lookup
+  features/devices/              SavedDevice list (shared_preferences, grouped by proj, reorder, per-transport addresses), mDNS discovery (nsd), BLE scan / USB ports / paired SPP providers, QR scan (mobile_scanner), add sheet with WiFi/BLE/USB/Bluetooth sections
+  features/render/               UiStore (immutable widget model, per-key listeners, chart/log ring buffers, dialogs, toasts, layout), one widget per `ty`, pages, overlays, transport chip
+  features/system/               system page sections (info, WiFi, security, reboot, OTA push + URL, release check, console, connection with transport pin and USB baud), OtaPush, release lookup
+third_party/usb_serial/          vendored usb_serial 0.5.2 (MIT) with a Gradle 9 build file
 test/
   codec_test.dart                decode every protocol vector, C2d builders vs vectors, HMAC vector, widget defaults
   session_test.dart              state machine with a scripted FakeTransport (pin, token reuse, lockout, reconnect, page resend)
+  ble_framer_test.dart           chunker/reassembler: roundtrip at MTU 23/185/512, seq wrap, gap, duplicate, oversize, stray continuation
+  line_framer_test.dart          split/joined/CRLF/empty/oversize lines
+  stream_transport_test.dart     hello -> auth -> ui through Session over an in-memory serial pipe, noise lines, link drop + reconnect
+  ble_transport_test.dart        BleTransport against a fake GATT layer: MTU-sized packets, write-without-response, reassembly + receiving flag, disconnect, permission denial, full session at MTU 23
+  transports_test.dart           SavedDevice addresses/json/key/candidates/merge, TransportChooser rotation and pin
+  add_sheet_test.dart            add sheet sections (WiFi, BLE with INFO read and record merge, USB with baud, Bluetooth, iOS hiding)
   store_test.dart                layout from the showcase vector, upd/prop/pts/log/dlg/toast/sys handling
   widgets_test.dart              every renderer widget type incl. interactions, layout rows and folding groups
   overlays_test.dart             device dialogs, toasts, PIN dialog
