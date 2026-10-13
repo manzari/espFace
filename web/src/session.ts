@@ -96,6 +96,8 @@ export class Session {
   dlg(id: string, ok: boolean, v?: string) { this.store.closeDialog(id); return this.send(c2d.dlg(id, ok, v)); }
   page(id: string) { this.store.setPage(id); return this.send(c2d.page(id)); }
   sys(cmd: string, extra: Record<string, unknown> = {}) { return this.send(c2d.sys(cmd, extra)); }
+  sendBinary(b: Uint8Array) { return this.ws.sendBinary(b); }
+  bufferedAmount() { return this.ws.bufferedAmount; }
 }
 
 // Dev page (index.html with data-dev) uses ?host= or the remembered host; a device-served page uses its own host.

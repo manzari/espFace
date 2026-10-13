@@ -1,4 +1,4 @@
-// WebSocket with exponential-backoff reconnect. Text frames go up to onMessage; binary frames are OTA only (phase 4).
+// WebSocket with exponential-backoff reconnect. Text frames go up to onMessage; binary frames carry OTA data.
 export interface WsEvents {
   onOpen(): void;
   onClose(): void;
@@ -52,4 +52,5 @@ export class WsClient {
 
   close() { this.stopped = true; if (this.timer) clearTimeout(this.timer); this.timer = null; this.ws?.close(); this.ws = null; }
   get open() { return this.ws?.readyState === WebSocket.OPEN; }
+  get bufferedAmount() { return this.ws?.bufferedAmount ?? 0; }
 }

@@ -18,6 +18,13 @@ Dev against the fake device (from the repository root):
 docker build -f docker/fake-device.Dockerfile -t espface-fake . && docker run --rm -d --name espface-fake -p 8080:8080 espface-fake --pin=1234
 ```
 
+## System pages
+
+- OTA push: file picker -> MD5 (pure JS, `src/proto/md5.ts`) -> `ota.begin` -> WebSocket binary frames of 4096 bytes, paused while `bufferedAmount` is above 64 KB -> device `ota.progress`/`ota.done`. Cancel sends `ota.abort`. `ota.url` installs from a URL the device can reach.
+- Release check: a button on the info card fetches `https://api.github.com/repos/<repo>/releases/latest` (only when pressed), compares the tag with `fw` and offers the first `.bin` asset to `ota.url`.
+- WiFi: `wifi.scan` list with RSSI bars and a lock for encrypted networks, SSID/password form -> `wifi.set`, live `wifi.status` pushes.
+- `/flash/`: standalone WebSerial page (Chromium over https) that flashes a `.bin` with esptool-js 0.5.4 loaded from jsdelivr, with a serial monitor. It cannot be exercised headlessly; it is a convenience, not a requirement.
+
 ## Connecting
 
 - Served by a device (bootstrap page): connects to `ws://<location.host>/ws`.
@@ -36,7 +43,9 @@ src/transport/ws.ts   WebSocket with backoff
 src/widgets/          one component per widget type (registry in index.tsx), unknown types -> "unsupported widget"
 src/layout.tsx        pages -> group cards -> rows -> widgets
 src/overlays.tsx      toasts, device dialogs, PIN dialog
-src/sys/              info, WiFi status, PIN/revoke, reboot, OTA stub, console, appearance, connection
+src/sys/              info (+ GitHub release check), WiFi scan/join, PIN/revoke, reboot, OTA push + URL, console, appearance, connection
+src/sys/ota.ts        OTA chunker with socket backpressure, release version compare; src/proto/md5.ts for the image hash
+public/flash/         WebSerial flash page (esptool-js from jsdelivr), hosted site only, not part of the bundle
 src/icons.tsx         Material Symbols subset as inline SVG
 test/                 Vitest; e2e/ Playwright
 ```
@@ -45,7 +54,7 @@ Leaflet (map widget) is loaded from cdnjs only when a map widget is on screen an
 
 ## Bundle size
 
-`npm run build` prints the gzipped size of `app.js` + `app.css` and fails above 80 KB. Current: about 50 KB.
+`npm run build` prints the gzipped size of `app.js` + `app.css` and fails above 80 KB. Current: about 53 KB. `public/flash/` is served next to it and not counted.
 
 ## Embedding into firmware
 

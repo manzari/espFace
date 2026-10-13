@@ -168,7 +168,11 @@ h2.hdr { margin: 4px 0; font-size: 1.25rem; }
 .list { display: flex; flex-direction: column; }
 .list button { display: flex; align-items: center; gap: 8px; width: 100%; background: none; border: 0; border-bottom: 1px solid var(--border); padding: 10px 4px; text-align: left; }
 .list button:last-child { border-bottom: 0; }
-.list .rssi { margin-left: auto; color: var(--muted); font-size: .85rem; }
+.list .rssi { margin-left: auto; color: var(--muted); font-size: .85rem; white-space: nowrap; }
+.list button.on { color: var(--accent); font-weight: 600; }
+.card code { font-size: .8rem; overflow-wrap: anywhere; }
+.card .err { color: var(--danger); }
+.release p { color: var(--fg); }
 .na { color: var(--muted); font-style: italic; }
 .card h3 { margin: 0; font-size: 1rem; display: flex; align-items: center; gap: 8px; }
 .card p { margin: 0; color: var(--muted); font-size: .9rem; }

@@ -1,4 +1,4 @@
-import type { D2C, DlgMsg, HelloMsg, LogMsg, PropMsg, PtsMsg, SysInfo, SysMsg, UiMsg, UpdMsg, Value, Widget, WifiAp, WifiStatus } from "./proto/types";
+import type { D2C, DlgMsg, ErrMsg, HelloMsg, LogMsg, PropMsg, PtsMsg, SysInfo, SysMsg, UiMsg, UpdMsg, Value, Widget, WifiAp, WifiStatus } from "./proto/types";
 
 export type Listener = () => void;
 export interface LogLine { ts: number; msg: string; c?: string }
@@ -38,6 +38,7 @@ export class Store {
   wifiScan: WifiAp[] | null = null;
   ota: { pct: number; done?: boolean; ok?: boolean; msg?: string } | null = null;
   lastSys: SysMsg | null = null;
+  lastErr: ErrMsg | null = null;
   private layoutCache: PageLayout[] | null = null;
   private subs = new Map<string, Set<Listener>>();
   private versions = new Map<string, number>();
@@ -69,7 +70,7 @@ export class Store {
       case "prop": return this.onProp(m);
       case "dlg": return this.onDlg(m);
       case "sys": return this.onSys(m);
-      case "err": return this.addToast("err", `${m.msg ?? "error"}${m.ref ? ` (${m.ref})` : ""} [${m.code}]`);
+      case "err": return this.onErr(m);
       default: return;
     }
   }
@@ -239,24 +240,35 @@ export class Store {
   removeToast(id: number) { this.toasts = this.toasts.filter((t) => t.id !== id); this.emit("toast"); }
 
   // ---- sys -------------------------------------------------------------
+  onErr(m: ErrMsg) {
+    this.lastErr = m;
+    if (m.ref?.startsWith("ota")) this.ota = { pct: this.ota?.pct ?? 0, done: true, ok: false, msg: m.msg };
+    this.addToast("err", `${m.msg ?? "error"}${m.ref ? ` (${m.ref})` : ""} [${m.code}]`);
+    this.emit("err");
+    if (m.ref?.startsWith("ota")) this.emit("sys:ota");
+  }
+
   onSys(m: SysMsg) {
     this.lastSys = m;
     switch (m.cmd) {
       case "info": this.sysInfo = m as SysInfo; break;
       case "wifi.status": this.wifi = m as WifiStatus; break;
       case "wifi.scan": this.wifiScan = Array.isArray(m.ap) ? (m.ap as WifiAp[]) : []; break;
-      case "ota.progress": this.ota = { pct: Number(m.pct) || 0 }; break;
-      case "ota.done": this.ota = { pct: 100, done: true, ok: !!m.ok, msg: m.msg }; break;
-      case "ota.begin": case "ota.url": if (m.ok === false) this.ota = { pct: 0, done: true, ok: false, msg: m.msg }; break;
+      case "ota.progress": this.ota = { pct: Math.max(0, Math.min(100, Number(m.pct) || 0)) }; break;
+      case "ota.done": this.ota = { pct: m.ok ? 100 : this.ota?.pct ?? 0, done: true, ok: !!m.ok, msg: m.msg }; break;
+      case "ota.begin": case "ota.url": this.ota = m.ok === false ? { pct: 0, done: true, ok: false, msg: m.msg } : { pct: 0 }; break;
+      case "ota.abort": this.ota = null; break;
       default: break;
     }
     if (["reboot", "pin.set", "revoke", "ota.done"].includes(m.cmd) && typeof m.ok === "boolean") this.addToast(m.ok ? "info" : "err", `${m.cmd}: ${m.ok ? "ok" : m.msg ?? "failed"}`);
     this.emit("sys");
     this.emit("sys:" + m.cmd);
+    if (m.cmd.startsWith("ota")) this.emit("sys:ota");
   }
 
   reset() {
-    this.sysInfo = null; this.wifi = null; this.wifiScan = null; this.ota = null; this.lastSys = null;
-    this.emit("sys");
+    this.sysInfo = null; this.wifi = null; this.wifiScan = null; this.lastSys = null; this.lastErr = null;
+    if (this.ota && !this.ota.done) this.ota = { pct: this.ota.pct, done: true, ok: false, msg: "connection lost" };
+    this.emit("sys"); this.emit("sys:ota");
   }
 }
