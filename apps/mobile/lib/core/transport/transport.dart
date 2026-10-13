@@ -1,10 +1,23 @@
-import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 
 enum TransportState { connecting, open, closed }
 
+/// The media a saved device can be reached over, in fallback order (PLAN 6.2).
+enum TransportKind {
+  wifi('WiFi'),
+  ble('BLE'),
+  usb('USB'),
+  bt('Bluetooth');
+
+  const TransportKind(this.label);
+  final String label;
+
+  static TransportKind? parse(String? s) => s == null ? null : values.where((k) => k.name == s).firstOrNull;
+}
+
 /// One connection to a device: text messages in both directions, binary frames for OTA.
-/// WsTransport is the only implementation in phase 3; BLE and stream transports (phase 5)
-/// implement the same contract so the session never knows the medium.
+/// WsTransport, BleTransport and StreamTransport (USB, Bluetooth Classic) implement the same
+/// contract so the session never knows the medium.
 abstract class Transport {
   /// Human readable endpoint, e.g. `ws://192.168.4.1/ws`.
   String get label;
@@ -40,3 +53,17 @@ class TransportEvent {
 
 /// Creates a fresh [Transport] per connection attempt so the session can reconnect.
 typedef TransportFactory = Transport Function();
+
+/// A transport that delivers messages in chunks (BLE): true while a message is being reassembled,
+/// so the renderer can show progress for the multi-KB `ui`.
+abstract class ChunkedTransport {
+  ValueListenable<bool> get receiving;
+}
+
+/// Thrown by connect() when the OS refused a permission the medium needs; the UI shows settings help.
+class PermissionDenied implements Exception {
+  const PermissionDenied(this.what);
+  final String what;
+  @override
+  String toString() => 'permission denied: $what';
+}

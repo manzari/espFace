@@ -46,6 +46,9 @@ class Session extends ChangeNotifier implements UiActions {
   int? authLeft;
   DateTime? lockUntil;
   Transport? transport;
+
+  /// Reason of the last transport close (e.g. a PermissionDenied), cleared when a transport opens.
+  Object? lastError;
   String? _nonce;
   String? _pendingPin;
   String? _sentToken;
@@ -119,8 +122,14 @@ class Session extends ChangeNotifier implements UiActions {
     });
     _evSub = t.events.listen((e) {
       if (gen != _gen) return;
-      if (e.state == TransportState.open) _onOpen();
-      if (e.state == TransportState.closed) _onClose();
+      if (e.state == TransportState.open) {
+        lastError = null;
+        _onOpen();
+      }
+      if (e.state == TransportState.closed) {
+        lastError = e.error;
+        _onClose();
+      }
     });
     if (state != ConnState.locked) _setState(ConnState.connecting);
     await t.connect();
