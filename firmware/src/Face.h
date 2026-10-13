@@ -38,6 +38,10 @@ class EspFace {
   bool set(const char* id, int v) { return core_.ui().set(id, v); }
   bool set(const char* id, const char* v) { return core_.ui().set(id, v); }
   bool set(const char* id, const String& v) { return core_.ui().set(id, v.c_str()); }
+  bool set(const char* id, uint32_t v) { return core_.ui().set(id, v); }
+  bool set(const char* id, int x, int y) { return core_.ui().set(id, x, y); }
+  bool setRows(const char* id, const char* rowsJson) { return core_.ui().setRows(id, rowsJson); }
+  bool setPoints(const char* id, const char* pointsJson) { return core_.ui().setPoints(id, pointsJson); }
   void push(const char* chart, const char* series, float v) { core_.ui().push(chart, series, v, chartTs()); }
   void log(const char* msg, const char* color = nullptr) { core_.log(msg, color); }
   void log(const char* logId, const char* msg, const char* color) { core_.ui().logLine(logId, msg, color); }

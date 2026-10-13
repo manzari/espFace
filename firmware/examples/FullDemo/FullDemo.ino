@@ -1,4 +1,4 @@
-// Every phase-1 feature: pages, groups, rows, all base widgets, persist, PIN, dialogs, props, log, chart, callbacks.
+// Every widget: pages, groups, rows, persist, PIN, dialogs, props, log, chart, callbacks, extended I/O widgets.
 #include <espFace.h>
 
 EspFace face;
@@ -6,6 +6,7 @@ float target = 60;
 bool pump = false;
 int cycles = 3;
 bool hot = false;
+int valveX = 0, valveY = 0;
 
 void setup() {
   Serial.begin(115200);
@@ -24,7 +25,11 @@ void setup() {
   ui.gauge("temp", "Temperature", 0, 120, "°C").style("round").zone(90, 120, "#ff0000").group("sensors");
   ui.chart("tchart", "Temp history", 600, "°C").series("temp", "Temp", "#ff8800").series("target", "Target", "#0088ff").group("sensors");
   ui.progress("level", "Tank").group("sensors");
+  ui.progress("bal", "Balance", -100, 100).center().group("sensors");
+  ui.display("disp", "Pressure", 5, "bar").group("sensors");
   ui.led("ok", "OK", "#00ff00").group("sensors");
+  ui.led("rgb", "Status").rgb().group("sensors");
+  ui.clock("now", "Device time", "HH:mm:ss").group("sensors");
   ui.label("state", "State").group("sensors");
 
   ui.group("control", "Control");
@@ -48,10 +53,25 @@ void setup() {
   ui.button("horn", "Horn").hold().color("#ff8800").group("control").onEvent([](int v) { face.log("term", v ? "horn pressed" : "horn released", "#ff8800"); });
   ui.log("term", "Log", 200, 8);
 
+  ui.page("io", "I/O").icon("tune");
+  ui.group("inputs", "Inputs");
+  ui.joystick("joy", "Valve").center().square().group("inputs").onMove([](int x, int y) { valveX = x; valveY = y; });
+  ui.dpad("pad", "Move").group("inputs").onEvent([](int k) {   // k: 'u','d','l','r','c' on press, 0 on release
+    if (k) { char m[16]; snprintf(m, sizeof m, "dpad %c", (char)k); face.log("term", m); }
+  });
+  ui.color("col", "Light").group("inputs").persist().onChange([](uint32_t rgb) { face.set("rgb", rgb); });
+  ui.datetime("start", "Start", "time").group("inputs").persist();
+  ui.flags("days", "Days", {"Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"}).group("inputs").persist();
+  ui.table("tbl", "Zones").column("Zone", 2).column("°C", 1, "right");
+  ui.image("img", "Diagram", "https://upload.wikimedia.org/wikipedia/commons/thumb/4/47/PNG_transparency_demonstration_1.png/240px-PNG_transparency_demonstration_1.png");
+  ui.stream("cam", "Camera", "http://192.168.1.60:81/stream");
+  ui.map("pos", "Location", 14);
+
   ui.page("setup", "Setup").icon("settings");
   ui.textblock("help", "Set the target and enable the pump.\nThe horn button is momentary.");
   ui.text("name", "Name", 32).regex("^[A-Za-z ]*$").persist();
   ui.text("pw", "Password", 64).secret();
+  ui.textarea("notes", "Notes", 512, 4).persist();
   ui.spacer("sp", 1, 16);
   ui.button("reboot", "Reboot").color("#ff0000").onClick([] { face.reboot(); });
 }
@@ -66,7 +86,14 @@ void loop() {
     face.push("tchart", "temp", temp);
     face.push("tchart", "target", target);
     face.set("level", 50 + 40 * cosf(tick / 37.0f));
+    face.set("bal", (float)valveX);
+    face.set("disp", 1.5f + valveY / 200.0f);
     if (tick % 5 == 0) face.log("term", pump ? "pump running" : "pump idle");
+    if (tick % 10 == 0) {
+      char rows[96]; snprintf(rows, sizeof rows, "[[\"Kitchen\",%.1f],[\"Bath\",23],[\"Hall\",19.8]]", (double)temp / 3);
+      face.setRows("tbl", rows);
+      face.setPoints("pos", "[[52.52,13.405,\"Boiler\"]]");
+    }
     if (temp > 85 && !hot) { hot = true; face.set("ok", false); face.ui().prop("temp").color("#ff0000").label("Temperature (HOT)"); face.toast("warn", "Overheating"); }
     if (temp < 80 && hot) { hot = false; face.ui().prop("temp").color("#00ff00").label("Temperature"); }
   }

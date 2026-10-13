@@ -115,7 +115,7 @@ class Core : public UiHost {
   uint32_t rebootAt_ = 0;
   RebootReason rebootReason_ = RebootReason::Sketch;
   bool timeValid_ = false, timeAuthoritative_ = false;
-  uint32_t unixAtSync_ = 0, msAtSync_ = 0;
+  uint32_t unixAtSync_ = 0, msAtSync_ = 0, clockAt_ = 0;
   int16_t tz_ = 0;
 };
 

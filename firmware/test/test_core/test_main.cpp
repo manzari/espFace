@@ -90,6 +90,29 @@ static void buildDemo(Ui& ui) {
   ui.text("pw", "Password", 64).secret();
 }
 
+// Phase 1b widgets, mirrors the I/O part of tools/fake-device demo-ui.mjs.
+static void buildIo(Ui& ui) {
+  ui.page("main", "Main");
+  ui.progress("bal", "Balance", -100, 100).center();
+  ui.display("disp", "Pressure", 5, "bar");
+  ui.led("rgb", "Status").rgb();
+  ui.clock("now", "Device time", "HH:mm:ss");
+  ui.page("io", "I/O").icon("tune");
+  ui.group("inputs", "Inputs");
+  ui.joystick("joy", "Valve").center().exp().square().group("inputs");
+  ui.dpad("pad", "Move").group("inputs");
+  ui.color("col", "Light").group("inputs");
+  ui.datetime("start", "Start", "time").group("inputs");
+  ui.flags("days", "Days", {"Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"}).group("inputs");
+  ui.table("tbl", "Zones").column("Zone", 2).column("°C", 1, "right");
+  ui.image("img", "Diagram", "https://example.com/a.png");
+  ui.stream("cam", "Camera", "http://192.168.1.60:81/stream");
+  ui.map("pos", "Location", 14);
+  ui.textarea("notes", "Notes", 512, 4);
+}
+
+static WidgetRef ref(Ui& ui, const char* id) { return WidgetRef(&ui, (uint16_t)ui.find(id)); }
+
 // ---- tests -----------------------------------------------------------------------
 void test_hmac_vector() {
   char mac[65];
@@ -378,6 +401,188 @@ void test_max_clients() {
   TEST_ASSERT_EQUAL(0, r.core.onOpen(&r.tr));
 }
 
+void test_extended_builder_output() {
+  Rig r; buildIo(r.core.ui()); r.open(); r.hello();
+  JsonDocument ui = r.tr.at(0, 1);
+  JsonArray w = ui["w"].as<JsonArray>();
+  TEST_ASSERT_EQUAL(17, w.size());
+  TEST_ASSERT_TRUE(w[1]["center"].as<bool>());
+  TEST_ASSERT_EQUAL(-100, w[1]["min"].as<int>());
+  TEST_ASSERT_EQUAL_STRING("display", w[2]["ty"]);
+  TEST_ASSERT_EQUAL(5, w[2]["digits"].as<int>());
+  TEST_ASSERT_EQUAL_STRING("bar", w[2]["unit"]);
+  TEST_ASSERT_TRUE(w[3]["rgb"].as<bool>());
+  TEST_ASSERT_EQUAL_STRING("clock", w[4]["ty"]);
+  TEST_ASSERT_EQUAL_STRING("HH:mm:ss", w[4]["fmt"]);
+  TEST_ASSERT_EQUAL_STRING("joystick", w[7]["ty"]);
+  TEST_ASSERT_TRUE(w[7]["center"].as<bool>());
+  TEST_ASSERT_TRUE(w[7]["exp"].as<bool>());
+  TEST_ASSERT_TRUE(w[7]["sq"].as<bool>());
+  TEST_ASSERT_EQUAL_STRING("io", w[7]["page"]);
+  TEST_ASSERT_EQUAL_STRING("inputs", w[7]["grp"]);
+  TEST_ASSERT_EQUAL_STRING("dpad", w[8]["ty"]);
+  TEST_ASSERT_EQUAL_STRING("color", w[9]["ty"]);
+  TEST_ASSERT_EQUAL_STRING("time", w[10]["mode"]);
+  TEST_ASSERT_EQUAL_STRING("flags", w[11]["ty"]);
+  TEST_ASSERT_EQUAL(7, w[11]["opts"].size());
+  TEST_ASSERT_EQUAL_STRING("Su", w[11]["opts"][6]);
+  TEST_ASSERT_EQUAL(2, w[12]["cols"].size());
+  TEST_ASSERT_EQUAL_STRING("Zone", w[12]["cols"][0]["lbl"]);
+  TEST_ASSERT_EQUAL(2, w[12]["cols"][0]["w"].as<int>());
+  TEST_ASSERT_EQUAL_STRING("right", w[12]["cols"][1]["align"]);
+  TEST_ASSERT_EQUAL_STRING("https://example.com/a.png", w[13]["src"]);
+  TEST_ASSERT_EQUAL_STRING("stream", w[14]["ty"]);
+  TEST_ASSERT_EQUAL(14, w[15]["zoom"].as<int>());
+  TEST_ASSERT_EQUAL(512, w[16]["maxlen"].as<int>());
+  TEST_ASSERT_EQUAL(4, w[16]["rows"].as<int>());
+  // initial values of the main page; dpad/image/stream carry none
+  JsonDocument upd = r.tr.at(0, 2);
+  TEST_ASSERT_EQUAL(0, upd["v"]["bal"].as<int>());
+  TEST_ASSERT_EQUAL_STRING("", upd["v"]["disp"]);
+  TEST_ASSERT_FALSE(upd["v"]["rgb"].as<bool>());
+  TEST_ASSERT_EQUAL(0, upd["v"]["now"].as<int>());
+  r.tr.clear(); r.sendMsg("{\"t\":\"page\",\"id\":\"io\"}");
+  upd = r.tr.last();
+  TEST_ASSERT_EQUAL(2, upd["v"]["joy"].size());
+  TEST_ASSERT_EQUAL(0, upd["v"]["col"].as<int>());
+  TEST_ASSERT_EQUAL(0, upd["v"]["start"].as<int>());
+  TEST_ASSERT_EQUAL(0, upd["v"]["days"].as<int>());
+  TEST_ASSERT_EQUAL(0, upd["v"]["tbl"].size());
+  TEST_ASSERT_EQUAL(0, upd["v"]["pos"].size());
+  TEST_ASSERT_EQUAL_STRING("", upd["v"]["notes"]);
+  TEST_ASSERT_FALSE(upd["v"]["pad"].is<JsonVariant>());
+  TEST_ASSERT_FALSE(upd["v"]["img"].is<JsonVariant>());
+}
+
+void test_extended_set_validation() {
+  Rig r; buildIo(r.core.ui());
+  Ui& ui = r.core.ui();
+  int jx = 0, jy = 0, moves = 0; uint32_t col = 0; int days = -1; Str notes;
+  ref(ui, "joy").onMove([&](int x, int y) { jx = x; jy = y; moves++; });
+  ref(ui, "col").onChange([&](uint32_t v) { col = v; });
+  ref(ui, "days").onChange([&](int v) { days = v; });
+  ref(ui, "notes").onChange([&](const Str& v) { notes = v; });
+  r.open(); r.hello(); r.sendMsg("{\"t\":\"page\",\"id\":\"io\"}"); r.tr.clear();
+  auto rejected = [&](const char* msg) { r.sendMsg(msg); return r.tr.last()["t"] == "err" && r.tr.last()["code"].as<int>() == 7; };
+  auto accepted = [&](const char* msg) { int n = r.tr.count(); r.sendMsg(msg); return r.tr.count() == n; };
+  TEST_ASSERT_TRUE(accepted("{\"t\":\"set\",\"id\":\"joy\",\"v\":[10,-20]}"));
+  TEST_ASSERT_EQUAL(10, jx); TEST_ASSERT_EQUAL(-20, jy); TEST_ASSERT_EQUAL(1, moves);
+  TEST_ASSERT_TRUE(rejected("{\"t\":\"set\",\"id\":\"joy\",\"v\":[150,0]}"));
+  TEST_ASSERT_TRUE(rejected("{\"t\":\"set\",\"id\":\"joy\",\"v\":[1,2,3]}"));
+  TEST_ASSERT_TRUE(rejected("{\"t\":\"set\",\"id\":\"joy\",\"v\":5}"));
+  TEST_ASSERT_EQUAL(1, moves);
+  TEST_ASSERT_TRUE(accepted("{\"t\":\"set\",\"id\":\"col\",\"v\":16746496}"));   // 0xff8800
+  TEST_ASSERT_EQUAL(0xff8800u, col);
+  TEST_ASSERT_TRUE(rejected("{\"t\":\"set\",\"id\":\"col\",\"v\":16777216}"));
+  TEST_ASSERT_TRUE(rejected("{\"t\":\"set\",\"id\":\"col\",\"v\":-1}"));
+  TEST_ASSERT_TRUE(rejected("{\"t\":\"set\",\"id\":\"col\",\"v\":1.5}"));
+  TEST_ASSERT_TRUE(accepted("{\"t\":\"set\",\"id\":\"days\",\"v\":127}"));
+  TEST_ASSERT_EQUAL(127, days);
+  TEST_ASSERT_TRUE(rejected("{\"t\":\"set\",\"id\":\"days\",\"v\":128}"));
+  TEST_ASSERT_TRUE(accepted("{\"t\":\"set\",\"id\":\"start\",\"v\":21600}"));
+  TEST_ASSERT_TRUE(rejected("{\"t\":\"set\",\"id\":\"start\",\"v\":-5}"));
+  TEST_ASSERT_TRUE(rejected("{\"t\":\"set\",\"id\":\"start\",\"v\":\"6:00\"}"));
+  TEST_ASSERT_TRUE(accepted("{\"t\":\"set\",\"id\":\"notes\",\"v\":\"hello\\nworld\"}"));
+  TEST_ASSERT_EQUAL_STRING("hello\nworld", notes.c_str());
+  Str longMsg = "{\"t\":\"set\",\"id\":\"notes\",\"v\":\""; for (int i = 0; i < 513; i++) longMsg += 'x'; longMsg += "\"}";
+  TEST_ASSERT_TRUE(rejected(longMsg.c_str()));
+  TEST_ASSERT_TRUE(rejected("{\"t\":\"set\",\"id\":\"notes\",\"v\":3}"));
+  // output widgets reject client sets, sketch sets work
+  TEST_ASSERT_TRUE(rejected("{\"t\":\"set\",\"id\":\"tbl\",\"v\":[[\"a\",1]]}"));
+  TEST_ASSERT_TRUE(rejected("{\"t\":\"set\",\"id\":\"rgb\",\"v\":true}"));
+  TEST_ASSERT_TRUE(ui.set("rgb", true));
+  TEST_ASSERT_TRUE(ui.set("rgb", 0xff0000));
+  TEST_ASSERT_EQUAL(0xff0000, ui.get("rgb")->asInt());
+  TEST_ASSERT_FALSE(ui.set("rgb", 0x1000000));
+  TEST_ASSERT_FALSE(ui.set("rgb", -1));
+  TEST_ASSERT_FALSE(ui.set("rgb", "red"));
+  TEST_ASSERT_TRUE(ui.set("disp", 1.85f));
+  TEST_ASSERT_TRUE(ui.set("disp", "Err"));
+  TEST_ASSERT_TRUE(ui.set("bal", -40.f));
+  TEST_ASSERT_FALSE(ui.set("bal", -140.f));
+  TEST_ASSERT_TRUE(ui.set("joy", 5, -5));
+  TEST_ASSERT_FALSE(ui.set("joy", 500, 0));
+  TEST_ASSERT_FALSE(ui.set("tbl", "nope"));
+  TEST_ASSERT_FALSE(ui.setRows("tbl", "{}"));
+  // echoes arrive in one coalesced upd
+  Client* c = r.core.client((uint8_t)r.slot); c->lastFlush -= 1000; r.tr.clear(); r.core.loop();
+  JsonDocument upd = r.tr.last();
+  TEST_ASSERT_EQUAL_STRING("upd", upd["t"]);
+  TEST_ASSERT_EQUAL(5, upd["v"]["joy"][0].as<int>());
+  TEST_ASSERT_EQUAL(-5, upd["v"]["joy"][1].as<int>());
+  TEST_ASSERT_EQUAL(0xff8800, upd["v"]["col"].as<int>());
+  TEST_ASSERT_EQUAL(127, upd["v"]["days"].as<int>());
+  TEST_ASSERT_EQUAL(21600, upd["v"]["start"].as<int>());
+  TEST_ASSERT_EQUAL_STRING("hello\nworld", upd["v"]["notes"]);
+  TEST_ASSERT_FALSE(upd["v"]["rgb"].is<JsonVariant>());   // main page, not visible
+  r.sendMsg("{\"t\":\"page\",\"id\":\"main\"}");
+  upd = r.tr.last();
+  TEST_ASSERT_EQUAL(0xff0000, upd["v"]["rgb"].as<int>());
+  TEST_ASSERT_EQUAL_STRING("Err", upd["v"]["disp"]);
+  TEST_ASSERT_EQUAL(-40, upd["v"]["bal"].as<int>());
+}
+
+void test_dpad_events() {
+  Rig r; buildIo(r.core.ui());
+  std::vector<int> evs;
+  ref(r.core.ui(), "pad").onEvent([&](int v) { evs.push_back(v); });
+  r.open(); r.hello(); r.tr.clear();
+  r.sendMsg("{\"t\":\"ev\",\"id\":\"pad\",\"v\":\"u\"}");
+  r.sendMsg("{\"t\":\"ev\",\"id\":\"pad\",\"v\":0}");
+  r.sendMsg("{\"t\":\"ev\",\"id\":\"pad\",\"v\":\"c\"}");
+  r.sendMsg("{\"t\":\"ev\",\"id\":\"pad\",\"v\":\"r\"}");
+  TEST_ASSERT_EQUAL(4, evs.size());
+  TEST_ASSERT_EQUAL('u', evs[0]); TEST_ASSERT_EQUAL(0, evs[1]); TEST_ASSERT_EQUAL('c', evs[2]); TEST_ASSERT_EQUAL('r', evs[3]);
+  TEST_ASSERT_EQUAL(0, r.tr.count());
+  r.sendMsg("{\"t\":\"ev\",\"id\":\"joy\"}");
+  TEST_ASSERT_EQUAL(7, r.tr.last()["code"].as<int>());
+  r.sendMsg("{\"t\":\"set\",\"id\":\"pad\",\"v\":1}");
+  TEST_ASSERT_EQUAL(7, r.tr.last()["code"].as<int>());
+}
+
+void test_clock_push() {
+  Rig r; buildIo(r.core.ui()); r.open(); r.hello();
+  r.core.loop();
+  TEST_ASSERT_EQUAL(0, r.core.ui().get("now")->asInt());   // no time source yet
+  r.sendMsg("{\"t\":\"time\",\"unix\":1728700000,\"tz\":120}");
+  Client* c = r.core.client((uint8_t)r.slot); c->lastFlush -= 1000; r.tr.clear();
+  r.core.loop();
+  TEST_ASSERT_EQUAL(1728700000, r.core.ui().get("now")->asInt());
+  JsonDocument upd = r.tr.last();
+  TEST_ASSERT_EQUAL_STRING("upd", upd["t"]);
+  TEST_ASSERT_EQUAL(1728700000u, upd["v"]["now"].as<uint32_t>());
+  // a fresh client gets the clock in its initial upd
+  int s2 = r.core.onOpen(&r.tr);
+  r.core.onMessage((uint8_t)s2, "{\"t\":\"hello\",\"v\":1,\"client\":\"web\"}", 36);
+  TEST_ASSERT_EQUAL(1728700000u, r.tr.at((uint8_t)s2, 2)["v"]["now"].as<uint32_t>());
+  // sketch time overrides the client clock and is pushed on the next loop
+  r.core.setTime(1728800000, true); c->lastFlush -= 1000; r.tr.clear(); r.core.loop();
+  TEST_ASSERT_EQUAL(1728800000u, r.tr.last()["v"]["now"].as<uint32_t>());
+}
+
+void test_table_and_map_setters() {
+  Rig r; buildIo(r.core.ui()); r.open(); r.hello(); r.sendMsg("{\"t\":\"page\",\"id\":\"io\"}"); r.tr.clear();
+  Ui& ui = r.core.ui();
+  TEST_ASSERT_TRUE(ui.setRows("tbl", "[[\"Kitchen\",21.5],[\"Bath\",23],[\"Hall\",19.8]]"));
+  TEST_ASSERT_TRUE(ui.setPoints("pos", "[[52.52,13.405,\"Boiler\"]]"));
+  TEST_ASSERT_FALSE(ui.setRows("joy", "[[1,2]]"));
+  Client* c = r.core.client((uint8_t)r.slot); c->lastFlush -= 1000; r.core.loop();
+  JsonDocument upd = r.tr.last();
+  TEST_ASSERT_EQUAL(3, upd["v"]["tbl"].size());
+  TEST_ASSERT_EQUAL_STRING("Bath", upd["v"]["tbl"][1][0]);
+  TEST_ASSERT_EQUAL_FLOAT(21.5f, upd["v"]["tbl"][0][1].as<float>());
+  TEST_ASSERT_EQUAL_STRING("Boiler", upd["v"]["pos"][0][2]);
+  TEST_ASSERT_EQUAL_FLOAT(13.405f, upd["v"]["pos"][0][1].as<float>());
+  // unchanged rows are not re-sent
+  TEST_ASSERT_TRUE(ui.setRows("tbl", "[[\"Kitchen\",21.5],[\"Bath\",23],[\"Hall\",19.8]]"));
+  c->lastFlush -= 1000; r.tr.clear(); r.core.loop();
+  TEST_ASSERT_EQUAL(0, r.tr.count());
+  ui.setRows("tbl", "[]"); c->lastFlush -= 1000; r.core.loop();
+  TEST_ASSERT_EQUAL(0, r.tr.last()["v"]["tbl"].size());
+  ui.prop("img").src("https://example.com/b.png");
+  TEST_ASSERT_EQUAL_STRING("https://example.com/b.png", r.tr.last()["p"]["src"]);
+}
+
 int main() {
   mkdir("test_output", 0755);
   g_out = fopen("test_output/d2c.jsonl", "w");
@@ -395,6 +600,11 @@ int main() {
   RUN_TEST(test_sys_info_time_reboot_and_errors);
   RUN_TEST(test_multiple_uis_per_transport_and_pin_override);
   RUN_TEST(test_max_clients);
+  RUN_TEST(test_extended_builder_output);
+  RUN_TEST(test_extended_set_validation);
+  RUN_TEST(test_dpad_events);
+  RUN_TEST(test_clock_push);
+  RUN_TEST(test_table_and_map_setters);
   if (g_out) fclose(g_out);
   return UNITY_END();
 }

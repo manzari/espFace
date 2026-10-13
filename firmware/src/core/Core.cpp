@@ -274,6 +274,7 @@ uint32_t Core::time() const { return timeValid_ ? unixAtSync_ + (nowMs() - msAtS
 void Core::setTime(uint32_t unix, bool authoritative) {
   if (timeAuthoritative_ && !authoritative) return;
   unixAtSync_ = unix; msAtSync_ = nowMs(); timeValid_ = true; timeAuthoritative_ = authoritative;
+  clockAt_ = 0;
 }
 
 void Core::requestReboot(RebootReason r, uint32_t delayMs) {
@@ -285,6 +286,7 @@ void Core::loop() {
   uint32_t now = nowMs();
   for (auto t : trs_) t->loop();
   for (auto u : uis_) u->loop(now);
+  if (timeValid_ && (!clockAt_ || (uint32_t)(now - clockAt_) >= 60000u)) { clockAt_ = now ? now : 1; for (auto u : uis_) u->tickClocks(time()); }
   for (auto& c : clients_) if (c.used && c.authed && (uint32_t)(now - c.lastFlush) >= ESPFACE_FLUSH_MS) flush(c);
   if (rebootPending_ && (int32_t)(now - rebootAt_) >= 0) {
     rebootPending_ = false;

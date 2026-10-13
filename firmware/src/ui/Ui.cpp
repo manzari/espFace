@@ -90,6 +90,27 @@ WidgetRef Ui::log(const char* id, const char* lbl, int cap, int rows) {
   w_[r.index()].setProp(PKey::cap, Value::ofInt(cap)); w_[r.index()].setProp(PKey::rows, Value::ofInt(rows));
   return r;
 }
+WidgetRef Ui::textarea(const char* id, const char* lbl, int maxlen, int rows) {
+  WidgetRef r = push_(WType::Textarea, id, lbl).maxlen(maxlen); w_[r.index()].setProp(PKey::rows, Value::ofInt(rows)); return r;
+}
+WidgetRef Ui::flags(const char* id, const char* lbl, const std::vector<const char*>& opts) {
+  WidgetRef r = push_(WType::Flags, id, lbl);
+  w_[r.index()].setProp(PKey::opts, Value::ofRaw(jsonStrArray(opts)));
+  w_[r.index()].nopts = (uint8_t)(opts.size() > 32 ? 32 : opts.size());
+  return r;
+}
+WidgetRef Ui::color(const char* id, const char* lbl) { return push_(WType::Color, id, lbl); }
+WidgetRef Ui::datetime(const char* id, const char* lbl, const char* mode) { return push_(WType::Datetime, id, lbl).mode(mode); }
+WidgetRef Ui::joystick(const char* id, const char* lbl) { return push_(WType::Joystick, id, lbl); }
+WidgetRef Ui::dpad(const char* id, const char* lbl) { return push_(WType::Dpad, id, lbl); }
+WidgetRef Ui::display(const char* id, const char* lbl, int digits, const char* unit) {
+  WidgetRef r = push_(WType::Display, id, lbl); w_[r.index()].setProp(PKey::digits, Value::ofInt(digits)); if (unit) r.unit(unit); return r;
+}
+WidgetRef Ui::table(const char* id, const char* lbl) { return push_(WType::Table, id, lbl); }
+WidgetRef Ui::image(const char* id, const char* lbl, const char* src) { return push_(WType::Image, id, lbl).strp(PKey::src, src); }
+WidgetRef Ui::stream(const char* id, const char* lbl, const char* src) { return push_(WType::Stream, id, lbl).strp(PKey::src, src); }
+WidgetRef Ui::clock(const char* id, const char* lbl, const char* fmt) { return push_(WType::Clock, id, lbl).fmt(fmt); }
+WidgetRef Ui::map(const char* id, const char* lbl, int zoom) { WidgetRef r = push_(WType::Map, id, lbl); w_[r.index()].setProp(PKey::zoom, Value::ofInt(zoom)); return r; }
 WidgetRef Ui::add(WType ty, const char* id, const char* lbl) { return push_(ty, id, lbl); }
 
 // ---- WidgetRef --------------------------------------------------------------
@@ -120,6 +141,11 @@ WidgetRef& WidgetRef::series(const char* id, const char* lbl, const char* color)
   { JsonWriter jw(sink); jw.beginObj(); jw.kv("id", id); if (lbl) jw.kv("lbl", lbl); if (color) jw.kv("color", color); jw.endObj(); }
   appendToRawArray(ui_->w_[idx_], PKey::series, item); return *this;
 }
+WidgetRef& WidgetRef::column(const char* lbl, float w, const char* align) {
+  Str item; StrSink sink(item);
+  { JsonWriter jw(sink); jw.beginObj(); jw.kv("lbl", lbl); jw.kv("w", w); if (align) jw.kv("align", align); jw.endObj(); }
+  appendToRawArray(ui_->w_[idx_], PKey::cols, item); return *this;
+}
 WidgetRef& WidgetRef::persist() {
   Widget& w = ui_->w_[idx_];
   if (!w.has(Widget::HasValue) || w.has(Widget::Output)) return *this;
@@ -134,6 +160,7 @@ WidgetRef& WidgetRef::persist() {
 WidgetRef& WidgetRef::value(const Value& v) { Value c = v; if (ui_->validate(ui_->w_[idx_], c)) ui_->w_[idx_].val = c; return *this; }
 WidgetRef& WidgetRef::onChangeImpl(std::function<void(bool)> fn, bool*) { ui_->handler(idx_).onChange = [fn](const Value& v) { fn(v.asBool()); }; return *this; }
 WidgetRef& WidgetRef::onChangeImpl(std::function<void(int)> fn, int*) { ui_->handler(idx_).onChange = [fn](const Value& v) { fn((int)v.asInt()); }; return *this; }
+WidgetRef& WidgetRef::onChangeImpl(std::function<void(uint32_t)> fn, uint32_t*) { ui_->handler(idx_).onChange = [fn](const Value& v) { fn((uint32_t)v.asInt()); }; return *this; }
 WidgetRef& WidgetRef::onChangeImpl(std::function<void(float)> fn, float*) { ui_->handler(idx_).onChange = [fn](const Value& v) { fn(v.asFloat()); }; return *this; }
 WidgetRef& WidgetRef::onChangeImpl(std::function<void(double)> fn, double*) { ui_->handler(idx_).onChange = [fn](const Value& v) { fn((double)v.asFloat()); }; return *this; }
 WidgetRef& WidgetRef::onChangeImpl(std::function<void(const Str&)> fn, Str*) { ui_->handler(idx_).onChange = [fn](const Value& v) { fn(v.asStr()); }; return *this; }
@@ -141,6 +168,7 @@ WidgetRef& WidgetRef::onChangeImpl(std::function<void(const char*)> fn, const ch
 WidgetRef& WidgetRef::onChangeImpl(std::function<void(const Value&)> fn, Value*) { ui_->handler(idx_).onChange = fn; return *this; }
 WidgetRef& WidgetRef::onClick(std::function<void()> fn) { ui_->handler(idx_).onEvent = [fn](int v) { if (v) fn(); }; return *this; }
 WidgetRef& WidgetRef::onEvent(EventFn fn) { ui_->handler(idx_).onEvent = fn; return *this; }
+WidgetRef& WidgetRef::onMove(MoveFn fn) { ui_->handler(idx_).onChange = [fn](const Value& v) { fn(v.x, v.y); }; return *this; }
 WidgetRef& WidgetRef::bind(bool& v) { ui_->w_[idx_].val = Value::ofBool(v); ui_->binds_.push_back({Binding::B, idx_, &v, ui_->w_[idx_].val}); return *this; }
 WidgetRef& WidgetRef::bind(int& v) { Value c = Value::ofInt(v); ui_->validate(ui_->w_[idx_], c); ui_->w_[idx_].val = c; ui_->binds_.push_back({Binding::I, idx_, &v, c}); return *this; }
 WidgetRef& WidgetRef::bind(float& v) { Value c = Value::ofFloat(v); ui_->validate(ui_->w_[idx_], c); ui_->w_[idx_].val = c; ui_->binds_.push_back({Binding::F, idx_, &v, c}); return *this; }
@@ -223,9 +251,13 @@ bool Ui::validate(const Widget& w, Value& v) const {
       return (int32_t)v.s.length() <= maxlen;
     }
     case VKind::Pair: return v.type == Value::Pair && v.x >= -100 && v.x <= 100 && v.y >= -100 && v.y <= 100;
-    case VKind::BoolOrInt: if (v.type == Value::Bool) return true; if (isInt(v)) { v = Value::ofInt(v.asInt()); return true; } return false;
+    case VKind::BoolOrInt: {
+      if (v.type == Value::Bool) return true;
+      if (!isInt(v) || v.asInt() < 0 || v.asInt() > 0xFFFFFF) return false;
+      v = Value::ofInt(v.asInt()); return true;
+    }
     case VKind::NumOrStr: if (v.type == Value::String) return true; if (num(f)) { v = Value::ofFloat(f); return true; } return false;
-    case VKind::Rows: return v.type == Value::Raw;
+    case VKind::Rows: return v.type == Value::Raw && v.s.length() >= 2 && v.s.c_str()[0] == '[' && v.s.c_str()[v.s.length() - 1] == ']';
     default: return false;
   }
 }
@@ -261,6 +293,8 @@ bool Ui::set(const char* id, const Value& v) {
 }
 
 const Value* Ui::get(const char* id) const { int i = find(id); return i < 0 ? nullptr : &w_[i].val; }
+
+void Ui::tickClocks(uint32_t unix) { for (auto& w : w_) if (w.ty == WType::Clock) set(w.id.c_str(), unix); }
 
 bool Ui::applySet(uint16_t idx, Value v, uint8_t fromSlotBit, int& errCode) {
   Widget& w = w_[idx];

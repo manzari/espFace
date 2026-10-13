@@ -29,7 +29,9 @@ template <class T> struct strip { using type = typename std::remove_cv<typename 
 }  // namespace detail
 
 using ChangeFn = std::function<void(const Value&)>;
-using EventFn = std::function<void(int)>;          // button/dpad: 1 press, 0 release, dpad: 'u','d','l','r','c'
+// button: 1 press, 0 release. dpad: char code 'u','d','l','r','c' on press, 0 on release.
+using EventFn = std::function<void(int)>;
+using MoveFn = std::function<void(int x, int y)>;   // joystick, each -100..100
 using DialogFn = std::function<void(bool ok, const Str& text)>;
 
 struct Handler {
@@ -73,8 +75,12 @@ class WidgetRef {
   WidgetRef& center(bool on = true) { return flag(PKey::center, on); }
   WidgetRef& legend(bool on) { return flag(PKey::legend, on); }
   WidgetRef& values(bool on) { return flag(PKey::vals, on); }
+  WidgetRef& exp(bool on = true) { return flag(PKey::exp, on); }
+  WidgetRef& rgb(bool on = true) { return flag(PKey::rgb, on); }
+  WidgetRef& mode(const char* m) { return strp(PKey::mode, m); }
   WidgetRef& zone(float from, float to, const char* color);
   WidgetRef& series(const char* id, const char* lbl = nullptr, const char* color = nullptr);
+  WidgetRef& column(const char* lbl, float w = 1, const char* align = "left");
   WidgetRef& maxlen(int n) { return nump(PKey::maxlen, (float)n); }
   WidgetRef& persist();
   WidgetRef& value(const Value& v);
@@ -89,6 +95,7 @@ class WidgetRef {
   }
   WidgetRef& onClick(std::function<void()> fn);
   WidgetRef& onEvent(EventFn fn);
+  WidgetRef& onMove(MoveFn fn);
   WidgetRef& bind(bool& v);
   WidgetRef& bind(int& v);
   WidgetRef& bind(float& v);
@@ -97,11 +104,13 @@ class WidgetRef {
   uint16_t index() const { return idx_; }
 
  private:
+  friend class Ui;
   WidgetRef& flag(PKey k, bool on);
   WidgetRef& strp(PKey k, const char* v);
   WidgetRef& nump(PKey k, float v);
   WidgetRef& onChangeImpl(std::function<void(bool)> fn, bool*);
   WidgetRef& onChangeImpl(std::function<void(int)> fn, int*);
+  WidgetRef& onChangeImpl(std::function<void(uint32_t)> fn, uint32_t*);
   WidgetRef& onChangeImpl(std::function<void(float)> fn, float*);
   WidgetRef& onChangeImpl(std::function<void(double)> fn, double*);
   WidgetRef& onChangeImpl(std::function<void(const Str&)> fn, Str*);
@@ -169,6 +178,18 @@ class Ui {
   WidgetRef chart(const char* id, const char* lbl, int winSeconds = 300, const char* unit = nullptr);
   WidgetRef textblock(const char* id, const char* text);
   WidgetRef log(const char* id, const char* lbl, int cap = 200, int rows = 8);
+  WidgetRef textarea(const char* id, const char* lbl, int maxlen = 256, int rows = 4);
+  WidgetRef flags(const char* id, const char* lbl, const std::vector<const char*>& opts);
+  WidgetRef color(const char* id, const char* lbl);
+  WidgetRef datetime(const char* id, const char* lbl, const char* mode = "datetime");
+  WidgetRef joystick(const char* id, const char* lbl);
+  WidgetRef dpad(const char* id, const char* lbl);
+  WidgetRef display(const char* id, const char* lbl, int digits = 4, const char* unit = nullptr);
+  WidgetRef table(const char* id, const char* lbl);     // add columns with .column(); needs at least one
+  WidgetRef image(const char* id, const char* lbl, const char* src);
+  WidgetRef stream(const char* id, const char* lbl, const char* src);
+  WidgetRef clock(const char* id, const char* lbl, const char* fmt = nullptr);   // Core pushes the device time
+  WidgetRef map(const char* id, const char* lbl, int zoom = 12);
   WidgetRef add(WType ty, const char* id, const char* lbl = nullptr);
 
   // ---- runtime ----------------------------------------------------------
@@ -176,7 +197,13 @@ class Ui {
   bool set(const char* id, bool v) { return set(id, Value::ofBool(v)); }
   bool set(const char* id, float v) { return set(id, Value::ofFloat(v)); }
   bool set(const char* id, int v) { return set(id, Value::ofInt(v)); }
+  bool set(const char* id, uint32_t v) { return set(id, Value::ofInt((int32_t)v)); }
   bool set(const char* id, const char* v) { return set(id, Value::ofStr(v)); }
+  bool set(const char* id, int x, int y) { return set(id, Value::ofPair((int16_t)x, (int16_t)y)); }
+  // table rows / map points as a raw JSON array, e.g. [["Kitchen",21.5],["Bath",23]] or [[52.52,13.4,"Home"]]
+  bool setRows(const char* id, const char* rowsJson) { return set(id, Value::ofRaw(rowsJson)); }
+  bool setPoints(const char* id, const char* pointsJson) { return setRows(id, pointsJson); }
+  void tickClocks(uint32_t unix);
   const Value* get(const char* id) const;
   PropRef prop(const char* id) { return PropRef(this, id); }
   void show(const char* id, bool visible) { prop(id).visible(visible); }
