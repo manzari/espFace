@@ -1,6 +1,6 @@
 # Renderer hosting
 
-Static nginx image serving `web/dist`: the renderer bundle at `/r/1/app.js` + `/r/1/app.css` (immutable cache, CORS `*`) and a landing page at `/` that connects to a device given with `?host=`.
+Static nginx image serving `web/dist`: the renderer bundle at `/r/1/app.js` + `/r/1/app.css` (immutable cache, CORS `*`), a landing page at `/` that connects to a device given with `?host=`, and `/flash/`, a WebSerial flash page (esptool-js from jsdelivr, Chromium only; Web Serial needs the https origin Traefik provides).
 
 Devices serve a bootstrap page that loads `https://<renderer-host>/r/1/app.js` (`ESPFACE_RENDERER_HOST` in `firmware/src/web/bootstrap.h`, default `https://espface.manzari.dev`). Breaking renderer changes go to `/r/2/`; `/r/1/` stays for old firmware.
 

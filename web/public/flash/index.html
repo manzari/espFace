@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>espFace flash</title>
+<meta name="description" content="Flash an ESP32 over USB from the browser (Web Serial, Chromium only).">
+<style>
+:root { --bg: #f4f5f7; --card: #fff; --fg: #1b1f24; --muted: #6a7280; --border: #d9dde3; --accent: #2f6fed; --danger: #d33; --input: #eef0f3; --radius: 10px; }
+@media (prefers-color-scheme: dark) { :root { --bg: #121417; --card: #1b1f24; --fg: #e6e8eb; --muted: #9aa3ad; --border: #2c3138; --input: #262b32; } }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 720px; margin: 0 auto; padding: 24px 16px; display: flex; flex-direction: column; gap: 16px; }
+h1 { font-size: 1.4rem; margin: 0; } h1 small { color: var(--muted); font-weight: 400; font-size: .9rem; margin-left: 8px; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+.card h2 { margin: 0; font-size: 1rem; }
+p { margin: 0; color: var(--muted); font-size: .92rem; }
+label { display: grid; grid-template-columns: 7rem 1fr; gap: 8px; align-items: center; font-size: .92rem; }
+input, select { min-height: 40px; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--input); color: var(--fg); font: inherit; width: 100%; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; }
+button { min-height: 40px; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--card); color: var(--fg); font: inherit; cursor: pointer; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.danger { color: var(--danger); }
+button:disabled { opacity: .5; cursor: default; }
+.bar { height: 12px; border-radius: 6px; background: var(--input); overflow: hidden; }
+.bar div { height: 100%; width: 0; background: var(--accent); transition: width .1s; }
+pre { background: #0d1117; color: #d0d7de; border-radius: 8px; padding: 10px; margin: 0; max-height: 18rem; overflow: auto; font: .8rem/1.45 ui-monospace, "DejaVu Sans Mono", monospace; white-space: pre-wrap; word-break: break-all; }
+.warn { color: var(--danger); }
+.state { font-weight: 600; }
+</style>
+</head>
+<body>
+<main>
+  <h1>espFace flash <small>Web Serial, Chromium only, https</small></h1>
+  <p>A convenience for blank boards: pick a firmware image, plug the ESP32 in over USB and flash it from the browser with <a href="https://github.com/espressif/esptool-js" target="_blank" rel="noreferrer">esptool-js</a>. Once espFace runs, use the OTA page of the device instead. Works in Chrome, Edge and other Chromium browsers; Firefox and Safari have no Web Serial.</p>
+  <p id="unsupported" class="warn" hidden>This browser has no Web Serial API (or the page is not served over https).</p>
+
+  <section class="card">
+    <h2>1. Image</h2>
+    <label>File <input type="file" id="file" accept=".bin,application/octet-stream"></label>
+    <label>Flash address <input id="addr" value="0x10000" spellcheck="false"></label>
+    <p>Use <code>0x10000</code> for an application image from PlatformIO or the Arduino IDE (<code>firmware.bin</code>, the same file the OTA page takes). A merged image that includes the bootloader and partition table (<code>esptool merge_bin</code>, Arduino "Export compiled binary" <code>*.merged.bin</code>) goes to <code>0x0</code>. Unsure: a merged image is the safe choice on a blank board.</p>
+    <label>Baud rate <select id="baud"><option>921600</option><option selected>460800</option><option>115200</option></select></label>
+    <label>Erase all <input type="checkbox" id="erase" style="width:auto;justify-self:start"></label>
+  </section>
+
+  <section class="card">
+    <h2>2. Device</h2>
+    <div class="row">
+      <button id="connect" class="primary">Connect and identify</button>
+      <button id="flash" disabled>Flash</button>
+      <button id="monitor">Serial monitor (115200)</button>
+      <button id="disconnect" disabled class="danger">Disconnect</button>
+    </div>
+    <p>Hold BOOT while plugging in if the board does not enter the bootloader by itself. <span id="state" class="state"></span></p>
+    <div class="bar"><div id="fill"></div></div>
+  </section>
+
+  <section class="card">
+    <h2>Console</h2>
+    <pre id="log"></pre>
+  </section>
+</main>
+<script type="module">
+// esptool-js 0.5.4, pinned, bundled as ESM by jsdelivr; its only dependency (pako) resolves from the same CDN.
+const ESPTOOL = "https://cdn.jsdelivr.net/npm/esptool-js@0.5.4/+esm";
+const $ = (id) => document.getElementById(id);
+const logEl = $("log"), fill = $("fill"), state = $("state");
+const log = (s) => { logEl.textContent += s + "\n"; logEl.scrollTop = logEl.scrollHeight; };
+const write = (s) => { logEl.textContent += s; logEl.scrollTop = logEl.scrollHeight; };
+const terminal = { clean() { logEl.textContent = ""; }, writeLine: log, write };
+let image = null, port = null, transport = null, loader = null, monitorReader = null, monitorOn = false;
+
+if (!("serial" in navigator) || !window.isSecureContext) { $("unsupported").hidden = false; for (const id of ["connect", "flash", "monitor"]) $(id).disabled = true; }
+
+$("file").onchange = async (e) => {
+  const f = e.target.files[0];
+  if (!f) return;
+  image = new Uint8Array(await f.arrayBuffer());
+  const merged = image.length > 4 && image[0] === 0xe9 && /merged|full|factory/i.test(f.name);
+  if (merged) $("addr").value = "0x0";
+  log(`image ${f.name}: ${image.length} bytes${merged ? " (looks merged, address set to 0x0)" : ""}`);
+  $("flash").disabled = !loader;
+};
+
+async function connect() {
+  $("connect").disabled = true;
+  try {
+    const { ESPLoader, Transport } = await import(ESPTOOL);
+    port = await navigator.serial.requestPort();
+    transport = new Transport(port, false);
+    loader = new ESPLoader({ transport, baudrate: Number($("baud").value), terminal, romBaudrate: 115200 });
+    state.textContent = "connecting…";
+    const chip = await loader.main();
+    state.textContent = `connected: ${chip}`;
+    $("flash").disabled = !image;
+    $("disconnect").disabled = false;
+  } catch (e) {
+    log("error: " + (e.message || e));
+    state.textContent = "not connected";
+    await disconnect();
+  }
+}
+
+async function flash() {
+  if (!loader || !image) return;
+  $("flash").disabled = true; $("disconnect").disabled = true;
+  const address = parseInt($("addr").value, 16);
+  if (!Number.isFinite(address)) { log("bad address"); $("flash").disabled = false; return; }
+  try {
+    let bstr = ""; for (let i = 0; i < image.length; i += 8192) bstr += String.fromCharCode.apply(null, image.subarray(i, i + 8192));
+    state.textContent = "flashing…";
+    await loader.writeFlash({
+      fileArray: [{ data: bstr, address }],
+      flashSize: "keep", flashMode: "keep", flashFreq: "keep",
+      eraseAll: $("erase").checked, compress: true,
+      reportProgress: (_i, written, total) => { fill.style.width = `${Math.floor((written * 100) / total)}%`; },
+    });
+    fill.style.width = "100%";
+    state.textContent = "done, resetting";
+    log("flash complete, hard reset");
+    await loader.after("hard_reset");
+  } catch (e) { log("error: " + (e.message || e)); state.textContent = "flash failed"; }
+  $("flash").disabled = false; $("disconnect").disabled = false;
+}
+
+async function disconnect() {
+  monitorOn = false;
+  try { await monitorReader?.cancel(); } catch {}
+  try { await transport?.disconnect(); } catch {}
+  try { if (port?.readable) await port.close(); } catch {}
+  transport = loader = null; monitorReader = null;
+  $("flash").disabled = true; $("disconnect").disabled = true; $("connect").disabled = false;
+}
+
+// Plain Web Serial read loop at 115200 to watch the sketch boot (prints the espFace AP name and IP).
+async function monitor() {
+  await disconnect();
+  try {
+    port = port ?? await navigator.serial.requestPort();
+    await port.open({ baudRate: 115200 });
+    monitorOn = true; $("disconnect").disabled = false; $("connect").disabled = true;
+    state.textContent = "serial monitor";
+    const dec = new TextDecoder();
+    while (monitorOn && port.readable) {
+      monitorReader = port.readable.getReader();
+      try { for (;;) { const { value, done } = await monitorReader.read(); if (done) break; write(dec.decode(value, { stream: true })); } }
+      catch (e) { log("monitor: " + (e.message || e)); break; }
+      finally { monitorReader.releaseLock(); monitorReader = null; }
+    }
+  } catch (e) { log("error: " + (e.message || e)); }
+  if (!monitorOn) state.textContent = "not connected";
+}
+
+$("connect").onclick = connect;
+$("flash").onclick = flash;
+$("monitor").onclick = monitor;
+$("disconnect").onclick = async () => { await disconnect(); state.textContent = "not connected"; };
+</script>
+</body>
+</html>
