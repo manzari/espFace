@@ -1,13 +1,15 @@
 # espFace
 
-An ESP32 describes its control UI in a few lines of Arduino code; native Android/iOS apps and a web renderer draw it. Plan: `docs/PLAN.md`. Protocol: `protocol/PROTOCOL.md`.
+An ESP32 describes its control UI in a few lines of Arduino code; native Android/iOS apps and a web renderer draw it. Plan: `docs/PLAN.md`. Protocol: `protocol/PROTOCOL.md`. Documentation site: `docs/site/` (built in Docker, served at `https://<renderer-host>/docs/`, API reference generated from the firmware headers).
 
 ```
 protocol/           JSON schema v1, test vectors, validator      (phase 0, done)
-tools/fake-device/  Node reference implementation of a device    (phase 0, done)
-firmware/           Arduino library                              (phase 1)
-web/                TypeScript renderer                          (phase 2)
-apps/mobile/        Flutter app                                  (phases 3, 5, done)
+tools/fake-device/  Node reference implementation of a device    (phase 0, done; hardening knobs phase 6)
+firmware/           Arduino library                              (phases 1, 1b, 4, 5, done)
+web/                TypeScript renderer                          (phases 2, 4, 6, done)
+apps/mobile/        Flutter app                                  (phases 3, 5, 6, done)
+server/renderer/    nginx image: renderer + flash page + docs    (Coolify)
+docs/site/          VitePress docs site                          (phase 6, done)
 docker/             build and run images
 ```
 
@@ -16,6 +18,10 @@ Everything runs in Docker so the host needs nothing but Docker:
 ```
 # validate protocol vectors
 docker run --rm -v "$PWD/protocol":/w -w /w node:22-alpine sh -c "npm install && npm test"
-# fake device on ws://localhost:8080/ws
-docker build -f docker/fake-device.Dockerfile -t espface-fake . && docker run --rm -p 8080:8080 espface-fake --pin=1234
+# fake device on ws://localhost:18080/ws (host port 8080 is often taken); hardening knobs see tools/fake-device/README.md
+docker build -f docker/fake-device.Dockerfile -t espface-fake . && docker run --rm -p 18080:8080 espface-fake --pin=1234
+# docs site
+docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/w -w /w/docs/site node:22-alpine sh -c "npm ci && npm run build"
+# renderer + flash + docs image (what Coolify deploys)
+docker build -f server/renderer/Dockerfile -t espface-renderer . && docker run --rm -p 8081:80 espface-renderer   # http://localhost:8081/docs/
 ```
