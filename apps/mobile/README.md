@@ -24,11 +24,15 @@ ESPFACE_FAKE_WS=ws://host.docker.internal:18080/ws scripts/flutter.sh test test/
 
 The integration test is skipped unless `ESPFACE_FAKE_WS` is set, so plain `flutter test` stays offline. `test/integration/hardening_test.dart` is gated the same way per knob: `ESPFACE_FAKE_WS_DROP` (`--pin=1234 --drop-every 8`), `ESPFACE_FAKE_WS_SLOW` (`--slow-ui`), `ESPFACE_FAKE_WS_HUGE` (`--huge-ui`), `ESPFACE_FAKE_WS_BUSY` (`--max-clients 1`), `ESPFACE_FAKE_WS_FLAKY` (`--pin=1234 --flaky-auth`); CI starts one fake device per knob on ports 18081 to 18085.
 
+## Release builds (phase 7)
+
+Version 1.0.0, release signing from `android/key.properties` or `ESPFACE_KEYSTORE*` env vars (unsigned with a warning otherwise), R8, per-ABI versionCodes without the digit 4, FOSS-only dependencies, launcher icons from `assets/icon/*.svg` (`scripts/icons.sh`), store metadata and generated screenshots under `fastlane/`, F-Droid metadata under `fdroid/`. Steps per store: [RELEASE.md](RELEASE.md).
+
 ## Reconnecting (phase 6)
 
 `Session` reconnects with exponential backoff 500 ms × 2^n, ±25 % jitter, capped at 30 s (`backoffDelay`); `reconnect()` is immediate and replaces a pending retry. The `UiStore` keeps the UI model across drops (only per-connection state is reset), the banner shows a countdown and a "Retry now" button, `err` 9 on hello is shown as "Device is full", and `err` 5 after a correct PIN is retried once with a fresh nonce before the dialog asks again. `sessionProvider` wires an `AppLifecycleListener`: in the background no reconnects are attempted (`setBackground(true)` cancels the pending retry, an open link is kept), returning to the foreground reconnects at once. Buffers are bounded (chart series 5000 points, log widgets 2000 lines, console 500, toasts 5, dialogs 10) and buffers of widgets missing from a new `ui` are released. `PageBody` renders every card as a lazy sliver (`SliverList.builder` inside `DecoratedSliver`/`SliverMainAxisGroup`) so a UI with hundreds of widgets only builds what is visible; `test/hardening_test.dart` prints the first-frame time for 600 widgets. `transportFactoryProvider` lets tests replace the real transports; the provider disposal test checks that leaving the device screen closes the transport and stops retries.
 
-Restricted networks: on hosts where `dl.google.com` is unreachable (Google Maven and the SDK manager answer 404) the Android build cannot fetch AGP, androidx, ML Kit or an NDK. `scripts/flutter.sh` then mounts `scripts/gradle-env.init.gradle.kts` and extra SDK parts from a Docker volume:
+Restricted networks: on hosts where `dl.google.com` is unreachable (Google Maven and the SDK manager answer 404) the Android build cannot fetch AGP, androidx or an NDK. `scripts/flutter.sh` then mounts `scripts/gradle-env.init.gradle.kts` and extra SDK parts from a Docker volume:
 
 ```sh
 ESPFACE_MAVEN_MIRROR=https://repo.huaweicloud.com/repository/maven/ \
@@ -85,7 +89,7 @@ lib/
   core/platform/                 app settings deep link (method channel)
   core/proto/                    hand-written message models (HelloMsg, UiMsg/WidgetDef, ...), codec, C2d builders, HMAC-SHA256, value formatting
   core/session/                  Session state machine (hello -> auth -> time, reconnect/backoff, lockout), TokenStore (flutter_secure_storage)
-  features/devices/              SavedDevice list (shared_preferences, grouped by proj, reorder, per-transport addresses), mDNS discovery (nsd), BLE scan / USB ports / paired SPP providers, QR scan (mobile_scanner), add sheet with WiFi/BLE/USB/Bluetooth sections
+  features/devices/              SavedDevice list (shared_preferences, grouped by proj, reorder, per-transport addresses), mDNS discovery (nsd), BLE scan / USB ports / paired SPP providers, QR scan (qr_code_dart_scan: pure-Dart ZXing over the camera plugin, no ML Kit), add sheet with WiFi/BLE/USB/Bluetooth sections
   features/render/               UiStore (immutable widget model, per-key listeners, chart/log ring buffers, dialogs, toasts, layout), one widget per `ty`, pages, overlays, transport chip
   features/system/               system page sections (info, WiFi, security, reboot, OTA push + URL, release check, console, connection with transport pin and USB baud), OtaPush, release lookup
 third_party/usb_serial/          vendored usb_serial 0.5.2 (MIT) with a Gradle 9 build file
@@ -103,6 +107,7 @@ test/
   widgets_test.dart              every renderer widget type incl. interactions, layout rows and folding groups
   overlays_test.dart             device dialogs, toasts, PIN dialog
   system_test.dart               flavor parsing, discovery/QR mapping, ws url, release info, OTA chunking
+  screenshots_test.dart          store screenshots: real app against a scripted demo device, PNGs with ESPFACE_SCREENSHOTS=1
   integration/fake_device_test.dart   real WsTransport against the fake device (env-gated)
   integration/hardening_test.dart     drop-every, slow-ui, huge-ui, max-clients, flaky-auth against fake devices with knobs (env-gated per knob)
 ```
