@@ -61,6 +61,7 @@ export default defineConfig({
         items: [
           { text: "Contributing and CI", link: "/guide/contributing" },
           { text: "FAQ and troubleshooting", link: "/guide/faq" },
+          { text: "Privacy policy", link: "/guide/privacy" },
         ],
       },
     ],
