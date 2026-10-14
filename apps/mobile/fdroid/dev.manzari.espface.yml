@@ -1,0 +1,49 @@
+Categories:
+  - Connectivity
+  - Development
+License: MIT
+AuthorName: Manzari
+AuthorEmail: mail@manzari.dev
+WebSite: https://espface.manzari.dev
+SourceCode: https://git.hauptstadt.monster/manzari/espFace
+IssueTracker: https://git.hauptstadt.monster/manzari/espFace/issues
+
+Name: espFace
+Summary: Native control panel for your ESP32 devices over WiFi, Bluetooth and USB
+Description: |
+  espFace turns an ESP32 into an app. The firmware describes its user interface
+  in a few lines of code (gauges, charts, switches, sliders, buttons, logs and
+  more) and espFace renders it as a native Material 3 screen. There is no cloud,
+  no account and no server: the phone talks straight to the device on your local
+  network, over Bluetooth LE, Bluetooth Classic or a USB OTG cable.
+
+  * 30 widget types, pages, groups and rows, laid out by the device; values
+    update live
+  * Finds devices via mDNS, a Bluetooth scan or a plugged-in USB serial adapter;
+    manual host entry and QR codes work too
+  * PIN pairing with a challenge-response handshake; the PIN never leaves the
+    phone
+  * Device system pages: info, WiFi provisioning, OTA firmware update, PIN
+    change, reboot, serial console
+  * Devices grouped by project, light and dark theme, dynamic colour
+
+  espFace collects nothing and contains no analytics or ads. Two optional
+  features reach the internet: map widgets load OpenStreetMap tiles, and the
+  firmware update check (off by default, user-triggered) asks GitHub for the
+  latest release of the device's repository.
+
+  Permissions: network (devices, mDNS), Bluetooth (no location on Android 12+;
+  older Android needs location for any Bluetooth scan), camera (optional, QR
+  codes only), USB host (optional).
+
+# No AntiFeatures: FOSS-only build (no ML Kit / Play Services), OSM tiles are open data, the GitHub
+# release check is optional, off by default and user-triggered. See apps/mobile/RELEASE.md.
+
+# Three APKs per release (armeabi-v7a, arm64-v8a, x86_64), so 9 keeps the newest 3 releases whole.
+ArchivePolicy: 9
+
+# Fill in after creating the release key (RELEASE.md, "Signing key"): SHA-256 of the signing cert, lowercase, no colons.
+# AllowedAPKSigningKeys:
+#   - <sha256>
+
+CurrentVersionCode: 2147483647

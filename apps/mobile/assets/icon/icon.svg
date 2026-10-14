@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Full-bleed square: iOS, legacy Android, store icon. Glyph = the docs favicon panel (slider, bar, knob). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3b8bff"/>
+      <stop offset="1" stop-color="#1f62d6"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <g transform="translate(512 512) scale(24) translate(-16.5 -16.5)" fill="#fff">
+    <rect x="7" y="9" width="18" height="4" rx="2"/>
+    <rect x="7" y="16" width="11" height="4" rx="2" opacity=".85"/>
+    <circle cx="23" cy="21" r="3"/>
+  </g>
+</svg>

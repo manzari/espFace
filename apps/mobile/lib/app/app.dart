@@ -17,6 +17,7 @@ class EspFaceApp extends ConsumerWidget {
     return DynamicColorBuilder(
       builder: (light, dark) => MaterialApp.router(
         title: flavor.appName,
+        debugShowCheckedModeBanner: false,
         themeMode: settings.mode,
         theme: buildTheme(brightness: Brightness.light, s: settings, flavor: flavor, dynamic: light),
         darkTheme: buildTheme(brightness: Brightness.dark, s: settings, flavor: flavor, dynamic: dark),

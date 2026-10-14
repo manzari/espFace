@@ -78,7 +78,8 @@ class Frame extends StatelessWidget {
               ],
             ),
           ),
-        if (w.sizeH != null) SizedBox(height: w.sizeH, child: child) else child,
+        // sq squares the whole frame, so the content gets what the label leaves (no overflow for square content).
+        if (w.sizeH != null) SizedBox(height: w.sizeH, child: child) else if (w.sq) Flexible(child: child) else child,
       ],
     );
     if (w.sq) body = AspectRatio(aspectRatio: 1, child: body);

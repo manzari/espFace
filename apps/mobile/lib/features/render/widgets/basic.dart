@@ -203,7 +203,7 @@ class SwitchWidget extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               if (w.icon != null) ...[Icon(iconFor(w.icon), size: 18), const SizedBox(width: 4)],
-              if (w.lbl != null) Expanded(child: Text(w.lbl!)),
+              if (w.lbl != null) Expanded(child: Text(w.lbl!, maxLines: 1, overflow: TextOverflow.ellipsis)),
               if (w.lbl == null) const Spacer(),
               if (state != null) Text(state, style: Theme.of(c).textTheme.labelMedium?.copyWith(color: Theme.of(c).colorScheme.onSurfaceVariant)),
             ]);

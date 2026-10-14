@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="432" height="432">
+  <!-- Adaptive icon foreground: glyph inside the 66dp safe zone, transparent background. -->
+  <g transform="translate(54 54) scale(2.4) translate(-16.5 -16.5)" fill="#fff">
+    <rect x="7" y="9" width="18" height="4" rx="2"/>
+    <rect x="7" y="16" width="11" height="4" rx="2" opacity=".85"/>
+    <circle cx="23" cy="21" r="3"/>
+  </g>
+</svg>

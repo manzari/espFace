@@ -1,0 +1,11 @@
+# Plugins reached through method channels / reflection; shrinking them saves little and risks runtime breakage.
+-keep class com.lib.flutter_blue_plus.** { *; }
+-keep class dev.lenhart.flutter_blue_classic.** { *; }
+-keep class dev.bessems.usbserial.** { *; }
+-keep class com.felhr.** { *; }
+-keep class com.haberey.flutter.nsd_android.** { *; }
+-keep class io.flutter.plugins.camerax.** { *; }
+-keep class com.it_nomads.fluttersecurestorage.** { *; }
+-keep class com.mr.flutter.plugin.filepicker.** { *; }
+-keep class dev.manzari.espface.** { *; }
+-dontwarn com.google.android.play.core.**

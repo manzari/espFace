@@ -1,0 +1,21 @@
+espFace turns an ESP32 into an app. The firmware describes its user interface in a few lines of code (gauges, charts, switches, sliders, buttons, logs and more) and espFace renders it as a native Material 3 screen. There is no cloud, no account and no server: the phone talks straight to the device on your local network, over Bluetooth LE, Bluetooth Classic or a USB OTG cable.
+
+Features
+* 30 widget types: gauges, line and area charts, progress bars, LEDs, numeric displays, switches, sliders, number inputs, segmented selects, weekday flags, joysticks, D-pads, colour pickers, time pickers, text fields, tables, logs, images, camera streams and maps
+* Pages, groups and rows, laid out by the device; values update live
+* Finds devices automatically via mDNS, a Bluetooth scan or a plugged-in USB serial adapter; manual host entry and QR codes work too
+* PIN pairing with a challenge-response handshake; the PIN never leaves the phone and a device token is kept in secure storage
+* Device system pages: info, WiFi provisioning, OTA firmware update, PIN change, reboot, serial console
+* Devices grouped by project, drag to reorder, light and dark theme, dynamic colour
+* Reconnects on its own and keeps the last screen while the link is down
+
+Privacy
+espFace collects nothing and contains no analytics or ads. It only talks to the devices you add. Two optional features reach the internet: map widgets load OpenStreetMap tiles, and the firmware update check (off by default, user-triggered) asks GitHub for the latest release of the device's repository.
+
+Permissions
+* Network: talk to devices and find them via mDNS
+* Bluetooth: connect to BLE and Bluetooth Classic devices (no location access on Android 12+; Android 11 and older require location permission for any Bluetooth scan)
+* Camera: optional, only to scan a device QR code
+* USB: optional, for ESP32 boards plugged in with an OTG cable
+
+espFace is free software (MIT). The ESP32 library, protocol, web renderer and this app live in one repository.
