@@ -1,0 +1,5 @@
+First release.
+* Native renderer for the espFace protocol v1, all 30 widget types
+* WiFi, Bluetooth LE, Bluetooth Classic and USB OTG serial
+* PIN pairing, OTA updates, WiFi provisioning, device system pages
+* FOSS-only build: QR scanning without Google ML Kit
