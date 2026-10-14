@@ -22,7 +22,11 @@ docker build -f docker/fake-device.Dockerfile -t espface-fake . && docker run --
 ESPFACE_FAKE_WS=ws://host.docker.internal:18080/ws scripts/flutter.sh test test/integration/fake_device_test.dart
 ```
 
-The integration test is skipped unless `ESPFACE_FAKE_WS` is set, so plain `flutter test` stays offline.
+The integration test is skipped unless `ESPFACE_FAKE_WS` is set, so plain `flutter test` stays offline. `test/integration/hardening_test.dart` is gated the same way per knob: `ESPFACE_FAKE_WS_DROP` (`--pin=1234 --drop-every 8`), `ESPFACE_FAKE_WS_SLOW` (`--slow-ui`), `ESPFACE_FAKE_WS_HUGE` (`--huge-ui`), `ESPFACE_FAKE_WS_BUSY` (`--max-clients 1`), `ESPFACE_FAKE_WS_FLAKY` (`--pin=1234 --flaky-auth`); CI starts one fake device per knob on ports 18081 to 18085.
+
+## Reconnecting (phase 6)
+
+`Session` reconnects with exponential backoff 500 ms × 2^n, ±25 % jitter, capped at 30 s (`backoffDelay`); `reconnect()` is immediate and replaces a pending retry. The `UiStore` keeps the UI model across drops (only per-connection state is reset), the banner shows a countdown and a "Retry now" button, `err` 9 on hello is shown as "Device is full", and `err` 5 after a correct PIN is retried once with a fresh nonce before the dialog asks again. `sessionProvider` wires an `AppLifecycleListener`: in the background no reconnects are attempted (`setBackground(true)` cancels the pending retry, an open link is kept), returning to the foreground reconnects at once. Buffers are bounded (chart series 5000 points, log widgets 2000 lines, console 500, toasts 5, dialogs 10) and buffers of widgets missing from a new `ui` are released. `PageBody` renders every card as a lazy sliver (`SliverList.builder` inside `DecoratedSliver`/`SliverMainAxisGroup`) so a UI with hundreds of widgets only builds what is visible; `test/hardening_test.dart` prints the first-frame time for 600 widgets. `transportFactoryProvider` lets tests replace the real transports; the provider disposal test checks that leaving the device screen closes the transport and stops retries.
 
 Restricted networks: on hosts where `dl.google.com` is unreachable (Google Maven and the SDK manager answer 404) the Android build cannot fetch AGP, androidx, ML Kit or an NDK. `scripts/flutter.sh` then mounts `scripts/gradle-env.init.gradle.kts` and extra SDK parts from a Docker volume:
 
@@ -88,6 +92,7 @@ third_party/usb_serial/          vendored usb_serial 0.5.2 (MIT) with a Gradle 9
 test/
   codec_test.dart                decode every protocol vector, C2d builders vs vectors, HMAC vector, widget defaults
   session_test.dart              state machine with a scripted FakeTransport (pin, token reuse, lockout, reconnect, page resend)
+  hardening_test.dart            backoff, drop keeps UI + token resume, busy, flaky auth, background pause/resume, immediate reconnect, dispose, provider disposal, buffer bounds, lazy layout with 600 widgets
   ble_framer_test.dart           chunker/reassembler: roundtrip at MTU 23/185/512, seq wrap, gap, duplicate, oversize, stray continuation
   line_framer_test.dart          split/joined/CRLF/empty/oversize lines
   stream_transport_test.dart     hello -> auth -> ui through Session over an in-memory serial pipe, noise lines, link drop + reconnect
@@ -99,6 +104,7 @@ test/
   overlays_test.dart             device dialogs, toasts, PIN dialog
   system_test.dart               flavor parsing, discovery/QR mapping, ws url, release info, OTA chunking
   integration/fake_device_test.dart   real WsTransport against the fake device (env-gated)
+  integration/hardening_test.dart     drop-every, slow-ui, huge-ui, max-clients, flaky-auth against fake devices with knobs (env-gated per knob)
 ```
 
 Renderer rules: `ui` builds an immutable model, `upd` only notifies the touched widget ids, `prop` patches a widget in place (structural props rebuild the layout), unknown widget types render an "unsupported widget" placeholder, unknown messages and keys are ignored. The app never talks to the internet except the user-triggered release check (off by default) and map tiles for the `map` widget.

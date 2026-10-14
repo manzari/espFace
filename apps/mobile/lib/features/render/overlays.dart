@@ -202,7 +202,6 @@ class PinDialog extends StatefulWidget {
 class _PinDialogState extends State<PinDialog> {
   final _ctl = TextEditingController();
   bool _busy = false;
-  int? _seenLeft;
 
   @override
   void initState() {
@@ -217,10 +216,8 @@ class _PinDialogState extends State<PinDialog> {
       Navigator.of(context).pop();
       return;
     }
-    if (s.authLeft != _seenLeft || s.state == ConnState.locked) {
-      _seenLeft = s.authLeft;
-      setState(() => _busy = false);
-    }
+    // Any session change while pairing is an auth result (wrong PIN, lockout, err 5): the field is editable again.
+    setState(() => _busy = false);
   }
 
   @override

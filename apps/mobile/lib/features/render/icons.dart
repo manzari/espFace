@@ -75,5 +75,6 @@ const Map<String, IconData> _icons = {
   'rocket': Icons.rocket_launch,
 };
 
-IconData iconFor(String? name, [IconData fallback = Icons.widgets]) => name == null ? fallback : (_icons[name] ?? fallback);
+/// Unknown names fall back to a question mark (the web renderer draws the same glyph).
+IconData iconFor(String? name, [IconData fallback = Icons.help_outline]) => name == null ? fallback : (_icons[name] ?? fallback);
 bool hasIcon(String? name) => name != null && _icons.containsKey(name);

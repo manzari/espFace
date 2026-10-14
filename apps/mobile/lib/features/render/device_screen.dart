@@ -213,12 +213,15 @@ class _Banner extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ListenableBuilder(
         listenable: session,
-        builder: (c, _) {
+        builder: (c, _) => Ticker(builder: (c) {
           final cs = Theme.of(c).colorScheme;
           final denied = session.lastError is PermissionDenied;
+          final left = session.retryAt?.difference(DateTime.now()).inSeconds ?? 0;
+          final when = session.inBackground ? ' when the app returns' : left > 0 ? ' in $left s' : '';
           final (text, bg) = switch (session.state) {
             ConnState.offline when denied => ('${(session.lastError as PermissionDenied).what} permission denied. Allow it in the app settings to connect.', cs.errorContainer),
-            ConnState.offline => ('Connection lost, reconnecting', cs.errorContainer),
+            ConnState.offline when session.busy => ('Device is full (too many clients), retrying$when', cs.errorContainer),
+            ConnState.offline => ('Connection lost, reconnecting$when', cs.errorContainer),
             ConnState.connecting => ('Connecting to ${session.label}', cs.surfaceContainerHighest),
             ConnState.stopped => ('Disconnected', cs.surfaceContainerHighest),
             _ => (null, null),
@@ -233,10 +236,11 @@ class _Banner extends StatelessWidget {
                 child: Row(children: [
                   Expanded(child: Text(text, style: Theme.of(c).textTheme.bodySmall)),
                   if (denied && session.state == ConnState.offline) TextButton(onPressed: openAppSettings, child: const Text('Settings')),
+                  if (!denied && session.state == ConnState.offline) TextButton(onPressed: session.reconnect, child: const Text('Retry now')),
                 ]),
               ),
             ),
           );
-        },
+        }),
       );
 }

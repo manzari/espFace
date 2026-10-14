@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -34,6 +35,9 @@ Transport makeTransport(SavedDevice d, TransportKind kind) => switch (kind) {
       TransportKind.bt => BtClassicTransport(d.btAddress!),
     };
 
+/// Tests override this with fake transports.
+final transportFactoryProvider = Provider<Transport Function(SavedDevice d, TransportKind kind)>((_) => makeTransport);
+
 String _transportSig(SavedDevice d, bool serial) => '${d.candidates(serialSupported: serial)}|${d.host}|${d.bleId}|${d.usbPort}|${d.usbBaud}|${d.btAddress}';
 
 /// Store + session for one saved device; lives while any screen of that device is shown.
@@ -49,7 +53,8 @@ final sessionProvider = Provider.autoDispose.family<SessionBundle, String>((ref,
   final dev = repo.byKey(key);
   if (dev == null) throw StateError('unknown device $key');
   final serial = ref.read(serialSupportedProvider);
-  final chooser = TransportChooser(kinds: dev.candidates(serialSupported: serial), make: (k) => makeTransport(repo.byKey(key) ?? dev, k));
+  final make = ref.read(transportFactoryProvider);
+  final chooser = TransportChooser(kinds: dev.candidates(serialSupported: serial), make: (k) => make(repo.byKey(key) ?? dev, k));
   final store = UiStore();
   final session = Session(
     transportFactory: chooser.create,
@@ -73,9 +78,12 @@ final sessionProvider = Provider.autoDispose.family<SessionBundle, String>((ref,
     session.reconnect();
   });
 
+  // Backgrounded app: no reconnect attempts (they would only burn device slots and battery); resume reconnects.
+  final lifecycle = AppLifecycleListener(onStateChange: (s) => session.setBackground(s != AppLifecycleState.resumed && s != AppLifecycleState.inactive));
   store.listen('device').addListener(onDevice);
   session.start();
   ref.onDispose(() {
+    lifecycle.dispose();
     store.listen('device').removeListener(onDevice);
     session.dispose();
     chooser.dispose();

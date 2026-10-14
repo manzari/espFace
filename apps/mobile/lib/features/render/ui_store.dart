@@ -76,6 +76,10 @@ class _Key extends ChangeNotifier {
 
 const _uptimeLimit = 1099511627776.0; // 2^40
 const _consoleCap = 500;
+// Hard bounds on client-side buffers, independent of what a device asks for (RAM soak).
+const chartMaxPoints = 5000;
+const logMaxLines = 2000;
+const dialogCap = 10;
 const _structural = {'vis', 'page', 'grp', 'row'};
 
 /// Everything the renderer shows. Widgets listen to fine-grained keys (`v:id`, `w:id`, `c:id`,
@@ -168,6 +172,8 @@ class UiStore {
       order.add(w.id);
     }
     _layoutCache = null;
+    charts.removeWhere((id, _) => !widgets.containsKey(id));
+    logs.removeWhere((id, _) => !widgets.containsKey(id));
     final p = pages();
     if (!p.any((x) => x.id == page)) page = p.isNotEmpty ? p.first.id : '';
     emit('layout');
@@ -297,6 +303,7 @@ class UiStore {
       while (cut < s.length && s[cut].$1 < latest - win) {
         cut++;
       }
+      if (s.length - cut > chartMaxPoints) cut = s.length - chartMaxPoints;
       if (cut > 0) s.removeRange(0, cut);
     }
     emit('c:${m.id}');
@@ -314,7 +321,7 @@ class UiStore {
     final lines = logs.putIfAbsent(id, () => []);
     if (m.ts != null && lines.any((l) => l.ts == line.ts && l.msg == line.msg)) return;
     lines.add(line);
-    final cap = widgets[id]?.cap ?? 200;
+    final cap = (widgets[id]?.cap ?? 200).clamp(1, logMaxLines);
     if (lines.length > cap) lines.removeRange(0, lines.length - cap);
     emit('l:$id');
   }
@@ -324,6 +331,7 @@ class UiStore {
     if (m.close) return closeDialog(m.id);
     if (m.kind != 'confirm' && m.kind != 'prompt') return;
     if (dialogs.any((d) => d.id == m.id)) return;
+    if (dialogs.length >= dialogCap) dialogs = dialogs.sublist(1);
     dialogs = [...dialogs, DeviceDialog(id: m.id, kind: m.kind!, title: m.title, msg: m.msg, def: m.def, timeout: m.timeout, at: now())];
     emit('dlg');
   }
