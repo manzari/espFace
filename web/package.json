@@ -8,6 +8,7 @@
     "dev": "vite --host 0.0.0.0",
     "build": "tsc --noEmit && vite build && node scripts/size.mjs",
     "test": "vitest run",
+    "freeze": "vitest run test/freeze.test.ts && node scripts/freeze-check.mjs",
     "e2e": "playwright test",
     "size": "node scripts/size.mjs",
     "icons": "node scripts/icons.mjs"

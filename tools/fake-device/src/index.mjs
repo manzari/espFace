@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 // espFace fake device: reference implementation of the device side of protocol v1 over WebSocket.
+import { readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { randomBytes, createHmac, createHash, timingSafeEqual } from "node:crypto";
 import { WebSocketServer } from "ws";
 import { widgets as demoWidgets, initialValues, validValue, hugeUi } from "./demo-ui.mjs";
 
 const PROTO_V = 1;
+const FW = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version + "-fake";
 const FLUSH_MS = 100;
 const LOCK_AFTER = 5;
 const LOCK_SECONDS = 60;
@@ -144,7 +146,7 @@ export class FakeDevice {
     const authed = [...this.clients].filter((x) => x.authed && x !== c).length;
     if (authed >= this.maxClients) { this.err(c, ERR.busy, "too many clients", "hello"); return c.ws.close(); }
     c.hello = true;
-    const base = { t: "hello", v: PROTO_V, name: this.name, id: this.id, proj: this.proj, icon: "thermostat", fw: "0.0.1-fake", auth: this.pin ? "pin" : "none", up: this.up(), caps: this.caps() };
+    const base = { t: "hello", v: PROTO_V, name: this.name, id: this.id, proj: this.proj, icon: "thermostat", fw: FW, auth: this.pin ? "pin" : "none", up: this.up(), caps: this.caps() };
     if (!this.pin || (m.tok && this.tokens.has(m.tok))) {
       this.send(c, { ...base, ok: true });
       return this.authenticated(c);
@@ -299,7 +301,7 @@ export class FakeDevice {
     const reply = (extra) => this.send(c, { t: "sys", cmd: m.cmd, ...extra });
     switch (m.cmd) {
       case "info":
-        return reply({ chip: "FAKE", fw: "0.0.1-fake", repo: "manzari/espFace", about: "Node fake device", rr: "power", heap: 200000, heapmin: 180000, up: this.up(), ip: this.wifi.ip, ssid: this.wifi.ssid, rssi: this.wifi.rssi, mac: "aa:bb:cc:dd:ee:ff", time: this.now(), clients: [...this.clients].filter((x) => x.authed).length });
+        return reply({ chip: "FAKE", fw: FW, repo: "manzari/espFace", about: "Node fake device", rr: "power", heap: 200000, heapmin: 180000, up: this.up(), ip: this.wifi.ip, ssid: this.wifi.ssid, rssi: this.wifi.rssi, mac: "aa:bb:cc:dd:ee:ff", time: this.now(), clients: [...this.clients].filter((x) => x.authed).length });
       case "wifi.scan":
         return reply({ ap: [{ ssid: "Home", rssi: -55, enc: true }, { ssid: "Cafe", rssi: -80, enc: false }, { ssid: "Neighbour", rssi: -88, enc: true }] });
       case "wifi.status":

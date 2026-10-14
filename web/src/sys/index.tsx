@@ -6,6 +6,7 @@ import { Confirm } from "../overlays";
 import { hms } from "../widgets/Log";
 import { loadTheme, saveTheme, type Theme } from "../theme";
 import { md5hex } from "../proto/md5";
+import { RENDERER_PROTOCOL, RENDERER_VERSION } from "../version";
 import { compareVersions, pickRelease, pushImage, releaseUrl, type ReleaseInfo } from "./ota";
 
 const fmtUp = (ms?: number) => { if (ms === undefined) return "-"; const s = Math.floor(ms / 1000); const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60); return `${d ? d + "d " : ""}${h}h ${m}m ${s % 60}s`; };
@@ -277,6 +278,7 @@ export function SysPages() {
   return (
     <div class="blocks">
       <Info /><Wifi /><Security /><Reboot /><Ota /><Console /><Appearance /><Connection />
+      <footer class="ver" data-renderer-version={RENDERER_VERSION}>espFace web renderer {RENDERER_VERSION} · protocol v{RENDERER_PROTOCOL}</footer>
     </div>
   );
 }

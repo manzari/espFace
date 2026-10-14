@@ -13,8 +13,8 @@ hero:
       text: API reference
       link: /reference/espface
     - theme: alt
-      text: GitHub
-      link: https://github.com/manzari/espFace
+      text: Source
+      link: https://git.hauptstadt.monster/manzari/espFace
 features:
   - title: Builder API, 30 widgets
     details: Gauges, charts, sliders, switches, joystick, tables, logs, maps and more, declared in a few chained calls. Pages, group cards and rows give the layout.

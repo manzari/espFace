@@ -1,11 +1,15 @@
 /// <reference types="vitest/config" />
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 
 // One classic-script bundle at dist/r/1/app.js + app.css; connect/index.html is the dev / hosted connect page,
 // public/index.html the landing page of the hosted site.
+const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8")) as { version: string };
+
 export default defineConfig({
   appType: "mpa",
+  define: { __RENDERER_VERSION__: JSON.stringify(pkg.version) },
   build: {
     target: "es2020",
     modulePreload: false,

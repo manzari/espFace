@@ -42,7 +42,7 @@ jobs:
       - run: cd firmware && FOOTPRINT_OUT=footprint-${{ matrix.board }}.md sh tools/ci-build.sh ${{ matrix.board }}
       - run: cat firmware/footprint-${{ matrix.board }}.md >> "$GITHUB_STEP_SUMMARY" || true
       - uses: actions/upload-artifact@v4
-        with: { name: footprint-${{ matrix.board }}, path: firmware/footprint-${{ matrix.board }}.md }
+        with: { name: "footprint-${{ matrix.board }}", path: "firmware/footprint-${{ matrix.board }}.md" }
 
   # Fails when Minimal's flash delta on esp32dev exceeds firmware/footprint.budget (current + 5 %).
   firmware-footprint-budget:
@@ -93,6 +93,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: cd web && npm ci && npm run build && npm test
+
+  # /r/1/ is a frozen contract (web/RENDERER-VERSIONING.md): fails if a build drops any protocol v1 message or widget type.
+  renderer-v1-freeze:
+    runs-on: docker
+    container: node:22-alpine
+    steps:
+      - uses: actions/checkout@v4
+      - run: cd web && npm ci && npm run build && npm run freeze
 
   docs:
     runs-on: docker

@@ -182,3 +182,4 @@ h2.hdr { margin: 4px 0; font-size: 1.25rem; }
 @media (min-width: 700px) {
   .main { padding: 24px 16px; }
 }
+.ver { color: var(--muted); font-size: 0.8em; text-align: center; padding: 8px 0 16px; grid-column: 1 / -1; }
