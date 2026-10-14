@@ -111,3 +111,48 @@ docker run --rm -v "$PWD":/w -v espface-pio:/pio -w /w/firmware --entrypoint sh 
 Compile-time options: `ESPFACE_MAX_CLIENTS` (4), `ESPFACE_LOG_HISTORY` (0), `ESPFACE_RENDERER_HOST`, `ESPFACE_FRAME_SIZE` (1024), `ESPFACE_MAX_MSG` (2048, largest accepted C→D message and stream line), `ESPFACE_NO_TLS` (http-only OTA/ntfy), `ESPFACE_EMBED_WEB`, `ESPFACE_BLE` (NimBLE transport), `ESPFACE_BLE_MTU` (512), `ESPFACE_BLE_MAX_CONN` (2), `ESPFACE_BT_CLASSIC` (Bluedroid SPP, classic ESP32 only).
 
 Examples: `Minimal` (gauge + switch), `FullDemo` (every widget, PIN, OTA, NTP, ntfy), `EmbeddedWeb` (renderer served from flash), `Notify` (ntfy alerts), `SerialOnly` (UI on USB serial, no WiFi), `BleOnly` (UI over BLE, no WiFi), `Provisioning` (main UI on WiFi, open WiFi-setup UI on BLE via `addUi`), `BtClassic` (UI over Bluetooth SPP, esp32dev only). An example directory may carry `build_flags`, `lib_deps`, `boards` and `project_options` files that `tools/ci-build.sh` applies.
+
+## Hardening / limits
+
+**Clients.** `ESPFACE_MAX_CLIENTS` (4) sessions across all transports together. Each session has its own page and dirty mask; a `set` is echoed in the next `upd` to the sender and to every client showing that page (no immediate reply), a rejected `set` gets `err` 7 and the current value only to the sender. A fifth WebSocket gets `err` 9 right after the upgrade and is closed, a fifth stream client gets `err` 9 on its first line, a BLE central beyond the limit is disconnected. `revoke` drops every other session and all tokens; one token may be used by several clients at once. Dialogs go to all clients of the UI that opened them; the first answer from any of them wins, later ones get `err` 6, and a client that connects while a dialog is open receives it with the remaining timeout. When a client disappears while the `ui` message streams out, the rest of that message is not sent; if the transport reports the close right away, neither `onConnect` nor `onDisconnect` fires.
+
+**Timeouts.**
+
+| What | Default | Define |
+|---|---|---|
+| unauthenticated session (no hello, or PIN never entered) closed with `err` 3 | 30 s | `ESPFACE_AUTH_TIMEOUT_MS` |
+| WebSocket ping | every 20 s | `ESPFACE_WS_PING_MS` |
+| WebSocket client silent (no frame, no pong) closed, slot freed | 60 s | `ESPFACE_WS_IDLE_MS` |
+| esp_http_server socket send/recv wait; a failed send closes the socket | 10 s | `ESPFACE_WS_SOCKET_TIMEOUT_S` |
+| stream idle close | off | `face.serial(..).setIdleTimeout(ms)` |
+
+**Reconnect policy.** `face.wifi().setReconnect(minS = 1, maxS = 60, apAfter = 10)`. When the STA link drops, the IDF auto-reconnect gets one attempt, then the library retries with the stored credentials after 1, 2, 4, 8 … 60 s (capped, reset on success). After `apAfter` failed attempts in a row (0 = never) the setup AP comes up next to the retrying STA; once the STA is back the AP goes down again 5 s later. A first connection that fails falls back to the AP at once, as before; from the AP the STA keeps retrying every `maxS` seconds. mDNS is restarted and the service re-announced on every (re)connect. `failures()` and `reconnects()` expose the counters. BLE advertising restarts after every disconnect while fewer than `ESPFACE_BLE_MAX_CONN` centrals are connected.
+
+**Robustness tests** (native, ASAN): 4 clients on one and on two transports, `err` 9, `revoke`, disconnect during the `ui` stream, auth timeout, token reuse, dialog rules; every C→D vector of `protocol/vectors` plus truncated, bit-flipped, oversized, 600-deep nested and random text/binary input on all four slots (about 43 000 messages) with no crash and the heap back to its baseline; 10 000 connect/auth/ui/set/upd/disconnect cycles with no heap growth. Heap per UI on the host (64-bit, so pointers and `std::string` are larger than on the ESP32): Minimal 6.6 KB library objects, 7.0 KB steady with one client, 7.8 KB peak; FullDemo (43 widgets) 27 KB, 35 KB, 39 KB.
+
+**Chip support** (compile-checked in CI; not all tested on hardware).
+
+| Board | WiFi + WebSocket | BLE (`ESPFACE_BLE`) | Bluetooth Classic SPP | `SerialOnly` over native USB | Platform |
+|---|---|---|---|---|---|
+| `esp32dev` (ESP32) | yes | yes | yes | no native USB (UART bridge) | `platformio/espressif32` |
+| `esp32-s3-devkitc-1` | yes | yes | no | USB Serial/JTAG (`-DARDUINO_USB_MODE=1 -DARDUINO_USB_CDC_ON_BOOT=1`) | `platformio/espressif32` |
+| `esp32-s2-saola-1` | yes | no radio (`#error`) | no | TinyUSB CDC (`-DARDUINO_USB_CDC_ON_BOOT=1`) | `platformio/espressif32` |
+| `esp32-c3-devkitm-1` | yes | yes | no | USB Serial/JTAG (`-DARDUINO_USB_MODE=1 -DARDUINO_USB_CDC_ON_BOOT=1`) | `platformio/espressif32` |
+| `esp32-c6-devkitc-1` | yes | yes | no | USB Serial/JTAG (`-DARDUINO_USB_MODE=1 -DARDUINO_USB_CDC_ON_BOOT=1`) | pioarduino `54.03.20` (Arduino core 3.x), `min_spiffs.csv` (BLE examples exceed 1.25 MB) |
+
+Per-board flags, options and platform live in `tools/boards/`; examples that need a radio list their boards in `examples/<name>/boards`. The ESP32-C6 CI job may fail without failing the pipeline because it depends on the pioarduino fork.
+
+**Footprint** (flash / static RAM deltas against the baseline sketch, `tools/ci-build.sh`, 2026-10-14). CI fails when Minimal on esp32dev exceeds `footprint.budget` (current + 5 %).
+
+| Example | esp32dev | esp32-s3 | esp32-s2 | esp32-c3 | esp32-c6 |
+|---|---|---|---|---|---|
+| Minimal | 56.6 KB / 1.1 KB | 54.3 KB / 1.2 KB | 69.8 KB / 1.4 KB | 51.7 KB / 1.1 KB | 51.0 KB / 1.1 KB |
+| SerialOnly | 84.3 KB / 1.1 KB | 82.5 KB / 1.2 KB | 97.3 KB / 1.4 KB | 78.6 KB / 1.1 KB | 63.2 KB / 1.1 KB |
+| EmbeddedWeb | 107.6 KB / 1.1 KB | 105.3 KB / 1.2 KB | 120.7 KB / 1.4 KB | 102.7 KB / 1.1 KB | 102.0 KB / 1.1 KB |
+| Notify | 239.7 KB / 3.2 KB | 235.5 KB / 2.3 KB | 237.0 KB / 2.2 KB | 235.4 KB / 2.2 KB | 194.7 KB / 3.1 KB |
+| FullDemo | 266.4 KB / 3.5 KB | 262.3 KB / 2.5 KB | 276.7 KB / 2.7 KB | 263.5 KB / 2.5 KB | 225.0 KB / 3.3 KB |
+| BleOnly | 324.0 KB / 12.0 KB | 262.5 KB / 8.7 KB | – | 278.3 KB / 8.7 KB | 386.7 KB / 7.9 KB |
+| Provisioning | 324.4 KB / 12.0 KB | 238.9 KB / 8.7 KB | – | 256.8 KB / 8.7 KB | 379.8 KB / 7.9 KB |
+| BtClassic | 811.5 KB / 14.7 KB | – | – | – | – |
+
+Trimming in phase 6: the library is compiled with `-fno-exceptions` (PlatformIO, via `library.json`; about 16.5 KB on esp32dev; sketch callbacks must not throw through the library) and no longer links the ArduinoJson serializer (2.6 KB). Minimal on esp32dev went from 75.8 KB to 56.6 KB. `ARDUINOJSON_USE_DOUBLE=0`/`USE_LONG_LONG=0` would save another 2 KB but change number parsing and were left out; RTTI is already off in the Arduino core; `std::function` stays (replacing it would change the callback API).

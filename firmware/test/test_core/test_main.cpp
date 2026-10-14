@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <sys/stat.h>
 #include <vector>
+#include <algorithm>
 #include <unistd.h>
 #include "core/Core.h"
 #include "sys/Info.h"
@@ -994,9 +995,9 @@ void test_stream_transport_end_to_end() {
   // a close requested by the core is applied in the next loop
   r.tr.close((uint8_t)r.tr.slot()); TEST_ASSERT_TRUE(r.tr.open()); r.core.loop(); TEST_ASSERT_FALSE(r.tr.open());
   // idle timeout
-  r.tr.setIdleTimeout(1);
+  r.tr.setIdleTimeout(100);   // wide enough that a slow (ASAN) loop does not hit it while the hello is processed
   r.send("{\"t\":\"hello\",\"v\":1,\"client\":\"app\"}\n"); TEST_ASSERT_TRUE(r.tr.open());
-  uint32_t t0 = nowMs(); while (nowMs() - t0 < 3) {}
+  uint32_t t0 = nowMs(); while (nowMs() - t0 < 110) {}
   r.core.loop(); TEST_ASSERT_FALSE(r.tr.open());
   r.tr.setIdleTimeout(0);
   // open on begin, and too-many-clients as a raw err line when no slot is free
@@ -1024,6 +1025,445 @@ void test_ota_begin_refused_on_stream() {
   TEST_ASSERT_EQUAL_STRING("ota.url", r.io.last()["cmd"]); TEST_ASSERT_TRUE(r.io.last()["ok"].as<bool>());
   r.send("{\"t\":\"sys\",\"cmd\":\"ota.abort\"}\n");
   TEST_ASSERT_TRUE(r.io.last()["ok"].as<bool>());
+}
+
+// ---- phase 6: hardening -------------------------------------------------------------------
+#include <dirent.h>
+#include <malloc.h>
+#if defined(__SANITIZE_ADDRESS__) || (defined(__has_feature) && __has_feature(address_sanitizer))
+extern "C" size_t __sanitizer_get_current_allocated_bytes();
+static size_t heapNow() { return __sanitizer_get_current_allocated_bytes(); }
+static const char* heapSource() { return "asan allocator"; }
+#else
+static size_t g_live = 0;
+void* operator new(size_t n) { void* p = malloc(n); g_live += malloc_usable_size(p); return p; }
+void* operator new[](size_t n) { void* p = malloc(n); g_live += malloc_usable_size(p); return p; }
+void operator delete(void* p) noexcept { if (p) g_live -= malloc_usable_size(p); free(p); }
+void operator delete[](void* p) noexcept { if (p) g_live -= malloc_usable_size(p); free(p); }
+void operator delete(void* p, size_t) noexcept { if (p) g_live -= malloc_usable_size(p); free(p); }
+void operator delete[](void* p, size_t) noexcept { if (p) g_live -= malloc_usable_size(p); free(p); }
+static size_t heapNow() { return g_live; }
+static const char* heapSource() { return "operator new only"; }
+#endif
+static size_t g_peak = 0;
+static void samplePeak() { size_t h = heapNow(); if (h > g_peak) g_peak = h; }
+
+// Transport that behaves like a real one: close() reports the close back to the core.
+struct LiveTransport : public MemTransport {
+  int failAfterFrames = -1;    // sendFrame fails from this frame on (-1 = never)
+  bool closeOnFail = false;    // and reports the close synchronously, like a stream that sees EOF
+  int frames = 0;
+  bool sendFrame(uint8_t slot, const char* data, size_t len, bool first, bool last) override {
+    samplePeak();
+    if (failAfterFrames >= 0 && frames++ >= failAfterFrames) {
+      if (closeOnFail) { closeOnFail = false; core_->onClose(slot); }
+      return false;
+    }
+    return MemTransport::sendFrame(slot, data, len, first, last);
+  }
+  void close(uint8_t slot) override { MemTransport::close(slot); core_->onClose(slot); }
+};
+
+struct MultiRig {
+  MemStore store; LiveTransport tr; Core core;
+  MultiRig(const char* pin = nullptr) {
+    core.setId("a1b2c3").setVersion("1.0.0"); core.addTransport(&tr); core.begin("Test", &store);
+    if (pin) core.setPin(pin, true);
+  }
+  int open() { return core.onOpen(&tr); }
+  void msg(int slot, const char* json) { core.onMessage((uint8_t)slot, json, strlen(json)); }
+  int connect(const char* tok = nullptr) {
+    int s = open(); if (s < 0) return s;
+    Str m = "{\"t\":\"hello\",\"v\":1,\"client\":\"app\""; if (tok) { m += ",\"tok\":\""; m += tok; m += "\""; } m += "}";
+    msg(s, m.c_str()); return s;
+  }
+  Str auth(int slot, const char* pin) {
+    Client* c = core.client((uint8_t)slot);
+    char mac[65]; pinMac(pin, c->nonce, "a1b2c3", mac);
+    Str m = "{\"t\":\"auth\",\"mac\":\""; m += mac; m += "\"}"; msg(slot, m.c_str());
+    int i = tr.find("\"tok\"", (uint8_t)slot); return i < 0 ? Str("") : Str(tr.at((uint8_t)slot, i)["tok"].as<const char*>());
+  }
+  void flushAll() { for (uint8_t i = 0; i < ESPFACE_MAX_CLIENTS; i++) { Client* c = core.client(i); if (c->used) c->lastFlush -= 1000; } core.loop(); }
+};
+
+// Mirrors examples/FullDemo/FullDemo.ino (widgets and persist; the callbacks are stand-ins).
+static void buildFullDemo(Ui& ui) {
+  ui.page("main", "Boiler").icon("home");
+  ui.header("Fake boiler");
+  ui.group("sensors", "Sensors");
+  ui.gauge("temp", "Temperature", 0, 120, "°C").style("round").zone(90, 120, "#ff0000").group("sensors");
+  ui.chart("tchart", "Temp history", 600, "°C").series("temp", "Temp", "#ff8800").series("target", "Target", "#0088ff").group("sensors");
+  ui.progress("level", "Tank").group("sensors");
+  ui.progress("bal", "Balance", -100, 100).center().group("sensors");
+  ui.display("disp", "Pressure", 5, "bar").group("sensors");
+  ui.led("ok", "OK", "#00ff00").group("sensors");
+  ui.led("rgb", "Status").rgb().group("sensors");
+  ui.clock("now", "Device time", "HH:mm:ss").group("sensors");
+  ui.label("state", "State").group("sensors");
+  ui.group("control", "Control");
+  ui.row("r1").group("control");
+  ui.sw("pump", "Pump").labels("ON", "OFF").row("r1").size(1).group("control");
+  ui.slider("target", "Target", 20, 90, 1, "°C").row("r1").size(3).group("control").persist();
+  ui.number("cycles", "Cycles", 0, 10).spin().group("control").persist();
+  ui.select("mode", "Mode", {"Off", "Auto", "Manual"}).style("seg").group("control").persist().onChange([](int) {});
+  ui.row("r2").group("control");
+  ui.button("reset", "Reset error").hint("Clears the error latch").icon("restart_alt").row("r2").group("control").onClick([] {});
+  ui.button("erase", "Erase").color("#ff0000").row("r2").group("control").onClick([] {});
+  ui.button("rename", "Rename").row("r2").group("control").onClick([] {});
+  ui.button("alert", "Notify").icon("warning").group("control").onClick([] {});
+  ui.button("horn", "Horn").hold().color("#ff8800").group("control").onEvent([](int) {});
+  ui.log("term", "Log", 200, 8);
+  ui.page("io", "I/O").icon("tune");
+  ui.group("inputs", "Inputs");
+  ui.joystick("joy", "Valve").center().square().group("inputs").onMove([](int, int) {});
+  ui.dpad("pad", "Move").group("inputs").onEvent([](int) {});
+  ui.color("col", "Light").group("inputs").persist().onChange([](uint32_t) {});
+  ui.datetime("start", "Start", "time").group("inputs").persist();
+  ui.flags("days", "Days", {"Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"}).group("inputs").persist();
+  ui.table("tbl", "Zones").column("Zone", 2).column("°C", 1, "right");
+  ui.image("img", "Diagram", "https://upload.wikimedia.org/wikipedia/commons/thumb/4/47/PNG_transparency_demonstration_1.png/240px-PNG_transparency_demonstration_1.png");
+  ui.stream("cam", "Camera", "http://192.168.1.60:81/stream");
+  ui.map("pos", "Location", 14);
+  ui.page("setup", "Setup").icon("settings");
+  ui.textblock("help", "Set the target and enable the pump.\nThe horn button is momentary.");
+  ui.text("name", "Name", 32).regex("^[A-Za-z ]*$").persist();
+  ui.text("pw", "Password", 64).secret();
+  ui.textarea("notes", "Notes", 512, 4).persist();
+  ui.spacer("sp", 1, 16);
+  ui.button("reboot", "Reboot").color("#ff0000").onClick([] {});
+}
+
+static void buildMinimal(Ui& ui) {
+  ui.gauge("temp", "Temperature", 0, 100, "°C");
+  ui.sw("led", "LED").onChange([](bool) {});
+}
+
+void test_multi_client_pages_dirty_masks_and_set_echo() {
+  MultiRig r; buildDemo(r.core.ui());
+  int s[4]; for (int i = 0; i < 4; i++) { s[i] = r.connect(); TEST_ASSERT_EQUAL(i, s[i]); }
+  TEST_ASSERT_EQUAL(4, r.core.clients());
+  TEST_ASSERT_EQUAL(-1, r.open());                              // no fifth slot
+  r.msg(s[1], "{\"t\":\"page\",\"id\":\"setup\"}");             // client 1 looks at another page
+  r.tr.clear();
+  r.msg(s[2], "{\"t\":\"set\",\"id\":\"target\",\"v\":50}");
+  TEST_ASSERT_EQUAL(0, r.tr.count(2));                         // no immediate echo, no error
+  // flush only client 0: the others keep their dirty bits
+  for (uint8_t i = 1; i < 4; i++) r.core.client(i)->lastFlush = nowMs();
+  r.core.client(0)->lastFlush -= 1000; r.core.loop();
+  TEST_ASSERT_EQUAL(1, r.tr.count(0)); TEST_ASSERT_EQUAL(50, r.tr.last(0)["v"]["target"].as<int>());
+  TEST_ASSERT_EQUAL(0, r.tr.count(2)); TEST_ASSERT_EQUAL(0, r.tr.count(3));
+  r.flushAll();
+  TEST_ASSERT_EQUAL(1, r.tr.count(0));                         // already flushed, nothing new
+  TEST_ASSERT_EQUAL(50, r.tr.last(2)["v"]["target"].as<int>());   // the sender gets its own echo (PROTOCOL 4.5)
+  TEST_ASSERT_EQUAL(50, r.tr.last(3)["v"]["target"].as<int>());
+  TEST_ASSERT_EQUAL(0, r.tr.count(1));                         // other page: nothing
+  r.msg(s[1], "{\"t\":\"page\",\"id\":\"main\"}");
+  TEST_ASSERT_EQUAL(50, r.tr.last(1)["v"]["target"].as<int>());   // full upd of the page carries it
+  // a rejected set re-sends the current value to the sender only
+  r.tr.clear();
+  r.msg(s[3], "{\"t\":\"set\",\"id\":\"target\",\"v\":500}");
+  TEST_ASSERT_EQUAL(7, r.tr.last(3)["code"].as<int>());
+  r.flushAll();
+  TEST_ASSERT_EQUAL(2, r.tr.count(3)); TEST_ASSERT_EQUAL(50, r.tr.last(3)["v"]["target"].as<int>());
+  for (int i = 0; i < 3; i++) TEST_ASSERT_EQUAL(0, r.tr.count(i));
+  // a sketch set reaches every client on the page
+  r.core.ui().set("temp", 77.f); r.flushAll();
+  for (int i = 0; i < 4; i++) TEST_ASSERT_EQUAL(77, r.tr.last(i)["v"]["temp"].as<int>());
+  // disconnect in the middle, the slot is reused, the others are untouched
+  r.core.onClose((uint8_t)s[1]);
+  TEST_ASSERT_EQUAL(3, r.core.clients());
+  TEST_ASSERT_EQUAL(1, r.connect());
+  TEST_ASSERT_EQUAL(77, r.tr.at(1, r.tr.count(1) - 1)["v"]["temp"].as<int>());
+  TEST_ASSERT_EQUAL(4, r.core.clients());
+}
+
+void test_fifth_client_across_two_transports_and_revoke() {
+  MultiRig r("1234"); r.core.ui().sw("a", "A");
+  FakeStream io; StreamTransport st(io, "serial"); r.core.addTransport(&st);
+  // three WS-like clients plus one stream client
+  Str tok;
+  for (int i = 0; i < 3; i++) { int s = r.connect(tok.length() ? tok.c_str() : nullptr); if (!tok.length()) tok = r.auth(s, "1234"); }
+  TEST_ASSERT_EQUAL(32, tok.length());
+  Str h = "{\"t\":\"hello\",\"v\":1,\"client\":\"app\",\"tok\":\""; h += tok; h += "\"}\n"; io.push(h.c_str()); r.core.loop();
+  TEST_ASSERT_TRUE(st.open()); TEST_ASSERT_EQUAL(4, r.core.clients());
+  // the fifth: no slot on the WS side, err 9 on a second stream
+  TEST_ASSERT_EQUAL(-1, r.open());
+  FakeStream io2; StreamTransport st2(io2, "uart"); r.core.addTransport(&st2);
+  io2.push("{\"t\":\"hello\",\"v\":1,\"client\":\"app\"}\n"); r.core.loop();
+  TEST_ASSERT_FALSE(st2.open()); TEST_ASSERT_EQUAL(9, io2.last()["code"].as<int>());
+  // revoke from the stream client drops the three others and the token
+  io.push("{\"t\":\"sys\",\"cmd\":\"revoke\"}\n"); r.core.loop();
+  TEST_ASSERT_TRUE(io.last()["ok"].as<bool>());
+  TEST_ASSERT_EQUAL(3, r.tr.closed.size());
+  TEST_ASSERT_EQUAL(1, r.core.clients()); TEST_ASSERT_TRUE(st.open());
+  TEST_ASSERT_FALSE(r.core.auth().validToken(tok.c_str()));
+  int s = r.connect(tok.c_str());
+  TEST_ASSERT_FALSE(r.tr.at((uint8_t)s, 0)["ok"].as<bool>());
+  // the freed slots take the second stream now
+  io2.push("{\"t\":\"hello\",\"v\":1,\"client\":\"app\"}\n"); r.core.loop();
+  TEST_ASSERT_TRUE(st2.open());
+}
+
+void test_unauthenticated_client_timeout() {
+  MultiRig r("1234"); r.core.ui().sw("a", "A");
+  int idle = r.open();                                  // never speaks
+  int halfway = r.connect();                            // hello, never auth
+  int ok = r.connect(); Str tok = r.auth(ok, "1234"); TEST_ASSERT_EQUAL(32, tok.length());
+  r.core.loop();
+  TEST_ASSERT_EQUAL(0, r.tr.closed.size());
+  r.core.client((uint8_t)idle)->connectedAt -= ESPFACE_AUTH_TIMEOUT_MS;
+  r.core.client((uint8_t)halfway)->connectedAt -= ESPFACE_AUTH_TIMEOUT_MS;
+  r.core.client((uint8_t)ok)->connectedAt -= ESPFACE_AUTH_TIMEOUT_MS;
+  r.core.loop();
+  TEST_ASSERT_EQUAL(2, r.tr.closed.size());
+  TEST_ASSERT_EQUAL(3, r.tr.last((uint8_t)halfway)["code"].as<int>());
+  TEST_ASSERT_EQUAL_STRING("auth timeout", r.tr.last((uint8_t)idle)["msg"]);
+  TEST_ASSERT_FALSE(r.core.client((uint8_t)idle)->used);
+  TEST_ASSERT_TRUE(r.core.client((uint8_t)ok)->authed);
+  TEST_ASSERT_EQUAL(1, r.core.clients());
+  // same on a stream: the transport closes the session on the next loop
+  StreamRig s("1234"); s.send("{\"t\":\"hello\",\"v\":1,\"client\":\"app\"}\n");
+  TEST_ASSERT_TRUE(s.tr.open());
+  s.core.client((uint8_t)s.tr.slot())->connectedAt -= ESPFACE_AUTH_TIMEOUT_MS;
+  s.core.loop(); s.core.loop();
+  TEST_ASSERT_FALSE(s.tr.open());
+  TEST_ASSERT_EQUAL(3, s.io.last()["code"].as<int>());
+}
+
+void test_token_reuse_from_two_clients_at_once() {
+  MultiRig r("1234"); r.core.ui().sw("a", "A");
+  int a = r.connect(); Str tok = r.auth(a, "1234");
+  int b = r.connect(tok.c_str()); int c = r.connect(tok.c_str());
+  TEST_ASSERT_TRUE(r.tr.at((uint8_t)b, 0)["ok"].as<bool>()); TEST_ASSERT_TRUE(r.tr.at((uint8_t)c, 0)["ok"].as<bool>());
+  TEST_ASSERT_EQUAL_STRING("ui", r.tr.at((uint8_t)c, 1)["t"]);
+  TEST_ASSERT_EQUAL(3, r.core.clients());
+  // a wrong token is a fresh pairing, not a lockout hit
+  int d = r.connect("00000000000000000000000000000000");
+  TEST_ASSERT_FALSE(r.tr.at((uint8_t)d, 0)["ok"].as<bool>()); TEST_ASSERT_EQUAL(32, strlen(r.tr.at((uint8_t)d, 0)["nonce"] | ""));
+  // pin.set from one client clears tokens but keeps the live sessions
+  r.msg(b, "{\"t\":\"sys\",\"cmd\":\"pin.set\",\"pin\":\"5678\"}");
+  TEST_ASSERT_TRUE(r.tr.last((uint8_t)b)["ok"].as<bool>());
+  TEST_ASSERT_EQUAL(3, r.core.clients()); TEST_ASSERT_EQUAL(0, r.tr.closed.size());
+  r.core.onClose((uint8_t)d); r.tr.clear();
+  int e = r.connect(tok.c_str());
+  TEST_ASSERT_FALSE(r.tr.at((uint8_t)e, 0)["ok"].as<bool>());
+  TEST_ASSERT_EQUAL(32, r.auth(e, "5678").length());
+}
+
+void test_dialog_any_client_answers_late_joiner_other_ui() {
+  MultiRig r; buildDemo(r.core.ui());
+  int a = r.connect(), b = r.connect(); r.tr.clear();
+  int answers = 0; bool okSeen = false;
+  r.core.ui().confirm("d1", "Erase?", [&](bool ok, const Str&) { answers++; okSeen = ok; });
+  TEST_ASSERT_EQUAL_STRING("dlg", r.tr.last((uint8_t)a)["t"]); TEST_ASSERT_EQUAL_STRING("dlg", r.tr.last((uint8_t)b)["t"]);
+  TEST_ASSERT_EQUAL(60, r.tr.last((uint8_t)a)["timeout"].as<int>());
+  r.msg(b, "{\"t\":\"dlg\",\"id\":\"d1\",\"ok\":true}");       // rule: any authenticated client of the UI may answer, first wins
+  TEST_ASSERT_EQUAL(1, answers); TEST_ASSERT_TRUE(okSeen);
+  TEST_ASSERT_TRUE(r.tr.last((uint8_t)a)["close"].as<bool>()); TEST_ASSERT_TRUE(r.tr.last((uint8_t)b)["close"].as<bool>());
+  r.msg(a, "{\"t\":\"dlg\",\"id\":\"d1\",\"ok\":false}");
+  TEST_ASSERT_EQUAL(6, r.tr.last((uint8_t)a)["code"].as<int>()); TEST_ASSERT_EQUAL(1, answers);
+  // a client that joins while a dialog is open receives it after ui/upd, with the remaining timeout
+  Str text;
+  r.core.ui().prompt("d2", "Name?", [&](bool, const Str& v) { text = v; }, "x", "Rename", 30);
+  int c = r.connect();
+  int di = r.tr.find("\"t\":\"dlg\"", (uint8_t)c);
+  TEST_ASSERT_TRUE(di >= 3);
+  JsonDocument d = r.tr.at((uint8_t)c, di);
+  TEST_ASSERT_EQUAL_STRING("d2", d["id"]); TEST_ASSERT_EQUAL_STRING("prompt", d["kind"]); TEST_ASSERT_EQUAL_STRING("x", d["def"]);
+  TEST_ASSERT_EQUAL_STRING("Rename", d["title"]); TEST_ASSERT_TRUE(d["timeout"].as<int>() >= 29 && d["timeout"].as<int>() <= 30);
+  r.msg(c, "{\"t\":\"dlg\",\"id\":\"d2\",\"ok\":true,\"v\":\"Kitchen\"}");
+  TEST_ASSERT_EQUAL_STRING("Kitchen", text.c_str());
+  TEST_ASSERT_EQUAL(0, r.core.ui().dialogs().size());
+  // a client on another UI neither sees nor can answer the dialog
+  Ui& setup = r.core.addUi("setup"); setup.text("ssid", "SSID");
+  LiveTransport tr2; r.core.addTransport(&tr2); tr2.use(setup);
+  int s = r.core.onOpen(&tr2); r.core.onMessage((uint8_t)s, "{\"t\":\"hello\",\"v\":1,\"client\":\"app\"}", 36);
+  r.core.ui().confirm("d3", "Main only", [&](bool, const Str&) { answers++; });
+  TEST_ASSERT_EQUAL(-1, tr2.find("\"t\":\"dlg\"", (uint8_t)s));
+  r.core.onMessage((uint8_t)s, "{\"t\":\"dlg\",\"id\":\"d3\",\"ok\":true}", 32);
+  TEST_ASSERT_EQUAL(6, tr2.last((uint8_t)s)["code"].as<int>()); TEST_ASSERT_EQUAL(1, answers);
+  TEST_ASSERT_EQUAL(1, r.core.ui().dialogs().size());
+}
+
+void test_client_disconnects_mid_ui_stream() {
+  MultiRig r; buildDemo(r.core.ui());
+  int connects = 0, disconnects = 0;
+  r.core.onConnect([&](const ClientInfo&) { connects++; });
+  r.core.onDisconnect([&](const ClientInfo&) { disconnects++; });
+  // the transport reports the close synchronously while the ui message streams out
+  r.tr.failAfterFrames = 2; r.tr.closeOnFail = true;
+  int s = r.connect();
+  TEST_ASSERT_FALSE(r.core.client((uint8_t)s)->used);
+  TEST_ASSERT_EQUAL(0, r.core.clients()); TEST_ASSERT_EQUAL(0, connects); TEST_ASSERT_EQUAL(0, disconnects);
+  TEST_ASSERT_EQUAL(1, r.tr.count((uint8_t)s));            // only the hello went out
+  // a WebSocket-like transport just fails the frames, the close event comes later
+  r.tr.failAfterFrames = 2; r.tr.closeOnFail = false; r.tr.frames = 0; r.tr.clear();
+  int s2 = r.connect();
+  TEST_ASSERT_TRUE(r.core.client((uint8_t)s2)->authed);
+  TEST_ASSERT_EQUAL(1, connects);
+  TEST_ASSERT_TRUE(r.tr.frames <= 5);                       // the rest of the ui and the upd were not even attempted
+  r.core.ui().set("temp", 1.f); r.flushAll();
+  r.core.onClose((uint8_t)s2);
+  TEST_ASSERT_EQUAL(1, disconnects);
+  // and the next client is served in full
+  r.tr.failAfterFrames = -1; r.tr.clear();
+  int s3 = r.connect();
+  TEST_ASSERT_EQUAL_STRING("upd", r.tr.at((uint8_t)s3, 2)["t"]);
+  TEST_ASSERT_EQUAL(22, r.tr.at((uint8_t)s3, 1)["w"].size());
+  TEST_ASSERT_EQUAL(2, connects);
+}
+
+// ---- fuzz and soak -----------------------------------------------------------------------
+static uint32_t g_rnd = 0x9e3779b9u;
+static uint32_t rnd() { g_rnd ^= g_rnd << 13; g_rnd ^= g_rnd >> 17; g_rnd ^= g_rnd << 5; return g_rnd; }
+
+static std::vector<Str> loadC2dVectors() {
+  std::vector<Str> out;
+  DIR* d = opendir("../protocol/vectors");
+  if (!d) return out;
+  std::vector<Str> files;
+  while (dirent* e = readdir(d)) { Str n = e->d_name; if (n.size() > 5 && n.compare(n.size() - 5, 5, ".json") == 0) files.push_back(n); }
+  closedir(d);
+  std::sort(files.begin(), files.end());
+  for (auto& f : files) {
+    Str path = "../protocol/vectors/" + f;
+    FILE* fp = fopen(path.c_str(), "rb"); if (!fp) continue;
+    Str raw; char buf[4096]; size_t n; while ((n = fread(buf, 1, sizeof buf, fp)) > 0) raw.append(buf, n); fclose(fp);
+    JsonDocument doc; if (deserializeJson(doc, raw)) continue;
+    for (JsonObject v : doc.as<JsonArray>()) {
+      if (strcmp(v["dir"] | "", "c2d")) continue;
+      Str m; serializeJson(v["msg"], m); out.push_back(m);
+    }
+  }
+  return out;
+}
+
+struct FuzzRig : public MultiRig {
+  Str tok;
+  FuzzRig() : MultiRig("1234") {
+    buildFullDemo(core.ui()); core.addCap("ota"); core.addCap("otaurl"); core.addCap("wifi");
+    core.sysHook = [](uint8_t, const char*, void*) { return false; };
+    core.binaryHook = [](uint8_t, const uint8_t*, size_t) { return false; };
+  }
+  // slot 0 authed, slot 1 hello only, slot 2 nothing yet, slot 3 authed via token
+  void prime() {
+    for (uint8_t i = 0; i < ESPFACE_MAX_CLIENTS; i++) if (core.client(i)->used) core.onClose(i);
+    tr.clear(); tr.closed.clear();
+    core.setPin("", true); connect();                       // authed without a PIN (fuzzed auth may have locked the PIN)
+    core.setPin("1234", true); connect(); open();           // hello only; silent
+    core.setPin("", true); connect(); core.setPin("1234", true);
+  }
+  void feed(const Str& m) { for (uint8_t s = 0; s < ESPFACE_MAX_CLIENTS; s++) if (core.client(s)->used) core.onMessage(s, m.c_str(), m.length()); }
+  void feedBin(const uint8_t* p, size_t n) { for (uint8_t s = 0; s < ESPFACE_MAX_CLIENTS; s++) if (core.client(s)->used) core.onBinary(s, p, n); }
+  bool alive() {   // the core still serves a fresh client correctly
+    for (uint8_t i = 0; i < ESPFACE_MAX_CLIENTS; i++) if (core.client(i)->used) core.onClose(i);
+    tr.clear(); core.setPin("", true); int s = connect(); if (s < 0) return false;
+    if (strcmp(tr.at((uint8_t)s, 0)["t"] | "", "hello") || !(tr.at((uint8_t)s, 0)["ok"] | false)) return false;
+    if (strcmp(tr.at((uint8_t)s, 1)["t"] | "", "ui") || strcmp(tr.at((uint8_t)s, 2)["t"] | "", "upd")) return false;
+    int n = tr.count((uint8_t)s); msg(s, "{\"t\":\"set\",\"id\":\"pump\",\"v\":true}");
+    return tr.count((uint8_t)s) == n && core.ui().get("pump")->asBool();
+  }
+};
+
+void test_fuzz_vectors_mutations_garbage_no_crash_no_leak() {
+  std::vector<Str> vec = loadC2dVectors();
+  TEST_ASSERT_TRUE_MESSAGE(vec.size() >= 20, "protocol/vectors not found (run from firmware/)");
+  FILE* keep = g_out; g_out = nullptr;
+  FuzzRig r; r.prime();
+  const int rounds = 40;
+  size_t baseline = 0; int msgs = 0;
+  for (int round = 0; round < rounds; round++) {
+    for (auto& m : vec) {
+      r.feed(m); msgs++;
+      for (size_t cut = 1; cut < m.length(); cut += 1 + (rnd() % 5)) { Str t = m.substr(0, cut); r.feed(t); msgs++; }   // truncated
+      for (int k = 0; k < 6; k++) { Str t = m; t[rnd() % t.length()] = (char)(rnd() & 0xff); r.feed(t); msgs++; }   // bit rot
+      { Str t = m; t.insert(t.length() - 1, ",\"pad\":\""); t.append(ESPFACE_MAX_MSG + 100, 'x'); t += "\"}"; r.feed(t); msgs++; }   // oversized
+      { Str t = m; t.insert(t.length() - 1, ",\"x\":" + Str(600, '[') + Str(600, ']')); r.feed(t); msgs++; }                        // nested
+      { Str t = "{\"t\":\"set\",\"id\":\"target\",\"v\":"; for (int d = 0; d < 300; d++) t += "{\"a\":"; t += "1"; r.feed(t); msgs++; }
+    }
+    for (int k = 0; k < 30; k++) {                                                                   // random bytes, text and binary
+      size_t n = rnd() % 300; Str t; for (size_t i = 0; i < n; i++) t += (char)(rnd() & 0xff);
+      r.feed(t); r.feedBin((const uint8_t*)t.data(), t.length()); msgs += 2;
+      static const char* frag[] = {"{", "}", "[", "\"t\":", "\"hello\"", "\"set\"", "\"sys\"", "\"cmd\":", "\"id\":", "\"v\":", "1e400", "-0", "null", "true", ",", ":", "\\u0000", "\"\\\"", "\"ota.begin\"", "\"dlg\"", "\"page\""};
+      Str f; int parts = 1 + rnd() % 12; for (int i = 0; i < parts; i++) f += frag[rnd() % (sizeof frag / sizeof *frag)];
+      r.feed(f); msgs++;
+    }
+    r.flushAll(); r.core.loop();
+    if (!r.alive()) TEST_FAIL_MESSAGE("core stopped answering after fuzz round");
+    r.prime();
+    if (round == 12) baseline = heapNow();   // after the token ring (8) and the store are full
+  }
+  r.prime(); r.core.loop();
+  size_t end = heapNow();
+  g_out = keep;
+  printf("[fuzz] %d messages over %d rounds, heap after warm-up %zu bytes, at end %zu bytes (%s)\n", msgs, rounds, baseline, end, heapSource());
+  TEST_ASSERT_TRUE_MESSAGE(end <= baseline + 64, "heap grew during fuzz");
+  TEST_ASSERT_TRUE(r.alive());
+}
+
+void test_ram_soak_connect_cycles() {
+  FILE* keep = g_out; g_out = nullptr;
+  MultiRig r("1234"); buildFullDemo(r.core.ui());
+  r.core.onConnect([](const ClientInfo&) {}); r.core.onDisconnect([](const ClientInfo&) {});
+  const int cycles = 10000;
+  size_t baseline = 0, peakSeen = 0; Str tok;
+  for (int i = 0; i < cycles; i++) {
+    int s = r.connect(tok.length() && (i % 3) ? tok.c_str() : nullptr);
+    if (s < 0) TEST_FAIL_MESSAGE("no free slot");
+    if (!r.core.client((uint8_t)s)->authed) tok = r.auth(s, "1234");
+    if (!r.core.client((uint8_t)s)->authed) TEST_FAIL_MESSAGE("auth failed");
+    char m[96]; snprintf(m, sizeof m, "{\"t\":\"set\",\"id\":\"target\",\"v\":%d}", 20 + i % 70); r.msg(s, m);
+    if (i % 2) r.msg(s, "{\"t\":\"page\",\"id\":\"io\"}");
+    r.msg(s, "{\"t\":\"sys\",\"cmd\":\"info\"}");
+    r.core.ui().set("temp", (float)(i % 120)); r.core.ui().logLine("term", "tick"); r.core.ui().push("tchart", "temp", 1.f);
+    r.flushAll();
+    if (i % 4 == 3) { for (uint8_t k = 0; k < ESPFACE_MAX_CLIENTS; k++) if (r.core.client(k)->used) r.core.onClose(k); r.tr.clear(); }   // up to 4 at a time
+    if (i == 99) baseline = heapNow();
+    if (i > 99 && heapNow() > peakSeen) peakSeen = heapNow();
+  }
+  for (uint8_t k = 0; k < ESPFACE_MAX_CLIENTS; k++) if (r.core.client(k)->used) r.core.onClose(k);
+  r.tr.clear(); r.core.loop();
+  size_t end = heapNow();
+  g_out = keep;
+  printf("[soak] %d connect/auth/ui/set/upd/disconnect cycles, heap after 100 cycles %zu bytes, at end %zu bytes, peak %zu (%s)\n", cycles, baseline, end, peakSeen, heapSource());
+  TEST_ASSERT_TRUE_MESSAGE(end <= baseline, "heap grew during the soak");
+}
+
+static size_t measureUi(const char* label, void (*build)(Ui&)) {
+  FILE* keep = g_out; g_out = nullptr;
+  size_t before = heapNow();
+  MemStore* store = new MemStore; LiveTransport* tr = new LiveTransport; Core* core = new Core;
+  core->setId("a1b2c3"); core->addTransport(tr); core->begin("Measure", store); core->setPin("1234", true);
+  build(core->ui());
+  size_t built = heapNow();
+  g_peak = built;
+  int s = core->onOpen(tr); core->onMessage((uint8_t)s, "{\"t\":\"hello\",\"v\":1,\"client\":\"app\"}", 36);
+  Client* c = core->client((uint8_t)s);
+  { char mac[65]; pinMac("1234", c->nonce, "a1b2c3", mac); Str a = "{\"t\":\"auth\",\"mac\":\""; a += mac; a += "\"}"; core->onMessage((uint8_t)s, a.c_str(), a.length()); }
+  size_t uiBytes = 0; for (auto& m : tr->msgs[s]) uiBytes += m.length();
+  tr->clear();
+  core->ui().set("temp", 42.f); c->lastFlush -= 1000; core->loop();
+  core->onMessage((uint8_t)s, "{\"t\":\"set\",\"id\":\"led\",\"v\":true}", 31);
+  core->onMessage((uint8_t)s, "{\"t\":\"set\",\"id\":\"target\",\"v\":30}", 33);
+  core->onMessage((uint8_t)s, "{\"t\":\"sys\",\"cmd\":\"info\"}", 25);
+  c->lastFlush -= 1000; core->loop();
+  size_t peak = g_peak; tr->clear(); core->loop();
+  size_t steady = heapNow(), widgets = core->ui().count();
+  delete core; delete tr; delete store;
+  size_t after = heapNow();
+  g_out = keep;
+  printf("[heap] %-8s widgets %2zu: library objects %zu B (core+ui+transport, before clients), hello traffic %zu B, "
+         "steady with 1 client %zu B, peak while serving %zu B (sampled at frame boundaries); sizeof Core %zu Client %zu Widget %zu Value %zu (%s)\n",
+         label, widgets, built - before, uiBytes, steady - before, peak - before, sizeof(Core), sizeof(Client), sizeof(Widget), sizeof(Value), heapSource());
+  if (after > before + 64) printf("[heap] %s: %zu bytes retained after teardown\n", label, after - before);
+  return after > before + 64 ? after - before : 0;
+}
+
+
+void test_heap_steady_state_report() {
+  measureUi("warm-up", buildMinimal);          // one-time lazy allocations (stdio, locale) settle here
+  TEST_ASSERT_EQUAL(0, measureUi("Minimal", buildMinimal));
+  TEST_ASSERT_EQUAL(0, measureUi("FullDemo", buildFullDemo));
 }
 
 int main() {
@@ -1059,6 +1499,15 @@ int main() {
   RUN_TEST(test_ble_framer_gap_duplicate_oversize);
   RUN_TEST(test_stream_transport_end_to_end);
   RUN_TEST(test_ota_begin_refused_on_stream);
+  RUN_TEST(test_multi_client_pages_dirty_masks_and_set_echo);
+  RUN_TEST(test_fifth_client_across_two_transports_and_revoke);
+  RUN_TEST(test_unauthenticated_client_timeout);
+  RUN_TEST(test_token_reuse_from_two_clients_at_once);
+  RUN_TEST(test_dialog_any_client_answers_late_joiner_other_ui);
+  RUN_TEST(test_client_disconnects_mid_ui_stream);
+  RUN_TEST(test_fuzz_vectors_mutations_garbage_no_crash_no_leak);
+  RUN_TEST(test_ram_soak_connect_cycles);
+  RUN_TEST(test_heap_steady_state_report);
   if (g_out) fclose(g_out);
   return UNITY_END();
 }

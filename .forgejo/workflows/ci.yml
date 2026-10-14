@@ -1,4 +1,4 @@
-# Forgejo Actions (GitHub-compatible syntax). Protocol vectors, fake device, firmware native tests, ESP32 footprint.
+# Forgejo Actions (GitHub-compatible syntax). Protocol vectors, fake device, firmware native tests, ESP32 chip matrix + footprint budget.
 name: ci
 on: [push, pull_request]
 
@@ -22,20 +22,38 @@ jobs:
         with: { node-version: 22 }
       - run: cd protocol && npm ci && node test/validate.mjs --d2c ../firmware/test_output/d2c.jsonl
 
+  # Every example on every chip; one footprint table per board. ESP32-C6 builds on the pioarduino platform fork
+  # (tools/boards/esp32-c6-devkitc-1.platform) and may fail without breaking the pipeline.
   firmware-esp32:
     runs-on: docker
     container: python:3.12-slim
+    strategy:
+      fail-fast: false
+      matrix:
+        board: [esp32dev, esp32-s3-devkitc-1, esp32-s2-saola-1, esp32-c3-devkitm-1, esp32-c6-devkitc-1]
+    continue-on-error: ${{ matrix.board == 'esp32-c6-devkitc-1' }}
     steps:
       - uses: actions/checkout@v4
       - run: apt-get update && apt-get install -y --no-install-recommends git && pip install platformio==6.1.16
       - uses: actions/cache@v4
         with:
           path: ~/.platformio
-          key: pio-${{ hashFiles('firmware/platformio.ini') }}
-      - run: cd firmware && sh tools/ci-build.sh esp32dev esp32-s3-devkitc-1
-      - run: cat firmware/footprint.md >> "$GITHUB_STEP_SUMMARY" || true
+          key: pio-${{ matrix.board }}-${{ hashFiles('firmware/platformio.ini', 'firmware/tools/boards/*') }}
+      - run: cd firmware && FOOTPRINT_OUT=footprint-${{ matrix.board }}.md sh tools/ci-build.sh ${{ matrix.board }}
+      - run: cat firmware/footprint-${{ matrix.board }}.md >> "$GITHUB_STEP_SUMMARY" || true
       - uses: actions/upload-artifact@v4
-        with: { name: footprint, path: firmware/footprint.md }
+        with: { name: footprint-${{ matrix.board }}, path: firmware/footprint-${{ matrix.board }}.md }
+
+  # Fails when Minimal's flash delta on esp32dev exceeds firmware/footprint.budget (current + 5 %).
+  firmware-footprint-budget:
+    runs-on: docker
+    container: python:3.12-slim
+    needs: firmware-esp32
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: footprint-esp32dev, path: firmware }
+      - run: cd firmware && sh tools/footprint-check.sh footprint-esp32dev.md footprint.budget
 
   flutter:
     runs-on: docker

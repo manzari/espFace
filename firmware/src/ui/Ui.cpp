@@ -212,6 +212,7 @@ int Ui::find(const char* id) const {
 }
 
 int Ui::pageIndexOf(const char* id) const {
+  if (!id) return -1;
   for (size_t i = 0; i < pages_.size(); i++) if (strEq(w_[pages_[i]].id, id)) return (int)i;
   return -1;
 }
@@ -349,27 +350,25 @@ void Ui::writeUpd(JsonWriter& jw, uint8_t slotBit, int8_t page, bool all) {
 
 void Ui::rebuild() { rev_++; if (host_) host_->uiRebuilt(*this); }
 
-void Ui::dialogSend(const char* id, const char* kind, const char* msg, const char* def, const char* title, uint16_t timeoutS) {
+void Ui::writeDialog(JsonWriter& jw, const Dialog& d, uint32_t now) const {
+  int32_t left = (int32_t)(d.deadline - now); if (left < 0) left = 0;
+  jw.beginObj(); jw.kv("t", "dlg"); jw.kv("id", d.id); jw.kv("kind", d.kind); jw.kv("msg", d.msg);
+  if (d.title.length()) jw.kv("title", d.title);
+  if (d.kind == "prompt") jw.kv("def", d.def);
+  jw.kv("timeout", (int32_t)((left + 999) / 1000)); jw.endObj();
+}
+
+void Ui::dialogOpen(const char* id, const char* kind, const char* msg, const char* def, const char* title, DialogFn cb, uint16_t timeoutS) {
+  answerDialog(id, false, "");
+  uint32_t now = nowMs();
+  dialogs_.push_back({Str(id), Str(kind), Str(msg ? msg : ""), Str(def ? def : ""), Str(title ? title : ""), cb, (uint32_t)(now + (uint32_t)timeoutS * 1000u)});
   if (!host_) return;
-  host_->uiBroadcast(*this, [&](JsonWriter& jw) {
-    jw.beginObj(); jw.kv("t", "dlg"); jw.kv("id", id); jw.kv("kind", kind); jw.kv("msg", msg);
-    if (title) jw.kv("title", title);
-    if (def) jw.kv("def", def);
-    jw.kv("timeout", (int32_t)timeoutS); jw.endObj();
-  });
+  const Dialog& d = dialogs_.back();
+  host_->uiBroadcast(*this, [&](JsonWriter& jw) { writeDialog(jw, d, now); });
 }
 
-void Ui::confirm(const char* id, const char* msg, DialogFn cb, const char* title, uint16_t timeoutS) {
-  answerDialog(id, false, "");
-  dialogs_.push_back({Str(id), cb, (uint32_t)(nowMs() + (uint32_t)timeoutS * 1000u), true});
-  dialogSend(id, "confirm", msg, nullptr, title, timeoutS);
-}
-
-void Ui::prompt(const char* id, const char* msg, DialogFn cb, const char* def, const char* title, uint16_t timeoutS) {
-  answerDialog(id, false, "");
-  dialogs_.push_back({Str(id), cb, (uint32_t)(nowMs() + (uint32_t)timeoutS * 1000u), true});
-  dialogSend(id, "prompt", msg, def, title, timeoutS);
-}
+void Ui::confirm(const char* id, const char* msg, DialogFn cb, const char* title, uint16_t timeoutS) { dialogOpen(id, "confirm", msg, nullptr, title, cb, timeoutS); }
+void Ui::prompt(const char* id, const char* msg, DialogFn cb, const char* def, const char* title, uint16_t timeoutS) { dialogOpen(id, "prompt", msg, def, title, cb, timeoutS); }
 
 bool Ui::answerDialog(const char* id, bool ok, const char* text) {
   for (size_t i = 0; i < dialogs_.size(); i++) {

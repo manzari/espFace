@@ -1,0 +1,1 @@
+board_build.partitions=min_spiffs.csv

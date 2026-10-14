@@ -10,7 +10,7 @@
 namespace espface {
 
 void WsTransport::begin() {
-  for (auto& f : fds_) f = -1;
+  for (int i = 0; i < ESPFACE_MAX_CLIENTS; i++) { fds_[i] = -1; lastRx_[i] = lastPing_[i] = 0; }
   q_ = xQueueCreate(16, sizeof(Event));
   mx_ = xSemaphoreCreateMutex();
   httpd_config_t cfg = HTTPD_DEFAULT_CONFIG();
@@ -18,6 +18,8 @@ void WsTransport::begin() {
   cfg.ctrl_port = 32768 + port_;
   cfg.max_open_sockets = ESPFACE_MAX_CLIENTS + 3;
   cfg.lru_purge_enable = true;
+  cfg.recv_wait_timeout = ESPFACE_WS_SOCKET_TIMEOUT_S;
+  cfg.send_wait_timeout = ESPFACE_WS_SOCKET_TIMEOUT_S;
   cfg.close_fn = closeFn;
   cfg.global_user_ctx = this;
   cfg.global_user_ctx_free_fn = [](void*) {};
@@ -28,7 +30,7 @@ void WsTransport::begin() {
     port_ = 8080; cfg.server_port = 8080; cfg.ctrl_port = 32768 + 8080;
     if (httpd_start(&hd_, &cfg) != ESP_OK) { hd_ = nullptr; logf("http server failed"); return; }
   }
-  httpd_uri_t ws = {}; ws.uri = "/ws"; ws.method = HTTP_GET; ws.handler = wsHandler; ws.user_ctx = this; ws.is_websocket = true; ws.handle_ws_control_frames = false;
+  httpd_uri_t ws = {}; ws.uri = "/ws"; ws.method = HTTP_GET; ws.handler = wsHandler; ws.user_ctx = this; ws.is_websocket = true; ws.handle_ws_control_frames = true;
   httpd_register_uri_handler(hd_, &ws);
 #ifdef ESPFACE_EMBED_WEB
   httpd_uri_t js = {}; js.uri = "/r/1/app.js"; js.method = HTTP_GET; js.handler = embedHandler; js.user_ctx = (void*)1;
@@ -54,8 +56,17 @@ esp_err_t WsTransport::wsHandler(httpd_req_t* req) {
   if (req->method == HTTP_GET) { self->post(Open, fd); return ESP_OK; }
   httpd_ws_frame_t f = {};
   if (httpd_ws_recv_frame(req, &f, 0) != ESP_OK) return ESP_FAIL;
+  if (f.type == HTTPD_WS_TYPE_PING || f.type == HTTPD_WS_TYPE_PONG || f.type == HTTPD_WS_TYPE_CLOSE) {
+    uint8_t ctl[125]; f.payload = ctl; f.len = f.len > sizeof ctl ? sizeof ctl : f.len;
+    if (f.len && httpd_ws_recv_frame(req, &f, f.len) != ESP_OK) return ESP_FAIL;
+    if (f.type == HTTPD_WS_TYPE_PING) { f.type = HTTPD_WS_TYPE_PONG; return httpd_ws_send_frame(req, &f); }
+    if (f.type == HTTPD_WS_TYPE_PONG) { self->post(Pong, fd); return ESP_OK; }
+    f.len = 0; f.payload = nullptr; httpd_ws_send_frame(req, &f);   // CLOSE: answer, then drop the socket
+    httpd_sess_trigger_close(self->hd_, fd);
+    return ESP_OK;
+  }
   if (f.type != HTTPD_WS_TYPE_TEXT && f.type != HTTPD_WS_TYPE_BINARY) return ESP_OK;
-  size_t cap = f.type == HTTPD_WS_TYPE_TEXT ? 2048 : 4096;
+  size_t cap = f.type == HTTPD_WS_TYPE_TEXT ? ESPFACE_MAX_MSG : 4096;
   if (f.len > cap) { logf("frame too large (%u)", (unsigned)f.len); return ESP_OK; }
   uint8_t* buf = (uint8_t*)malloc(f.len + 1);
   if (!buf) return ESP_ERR_NO_MEM;
@@ -95,12 +106,18 @@ esp_err_t WsTransport::embedHandler(httpd_req_t* req) {
 void WsTransport::loop() {
   if (!q_) return;
   Event e;
+  uint32_t now = millis();
   while (xQueueReceive(q_, &e, 0) == pdTRUE) {
     switch (e.type) {
       case Open: {
         int slot = core_->onOpen(this);
-        if (slot < 0) { httpd_sess_trigger_close(hd_, e.fd); break; }
-        fds_[slot] = e.fd;
+        if (slot < 0) {   // a fifth client: err 9, then close (PROTOCOL 3)
+          static const char kFull[] = "{\"t\":\"err\",\"code\":9,\"msg\":\"too many clients\",\"ref\":\"hello\"}";
+          sendRaw(e.fd, HTTPD_WS_TYPE_TEXT, kFull, sizeof kFull - 1);
+          httpd_sess_trigger_close(hd_, e.fd);
+          break;
+        }
+        fds_[slot] = e.fd; lastRx_[slot] = lastPing_[slot] = now;
         break;
       }
       case Close: {
@@ -108,9 +125,11 @@ void WsTransport::loop() {
         if (slot >= 0) { fds_[slot] = -1; core_->onClose((uint8_t)slot); }
         break;
       }
+      case Pong: { int slot = slotOf(e.fd); if (slot >= 0) lastRx_[slot] = now; break; }
       case Text: case Binary: {
         int slot = slotOf(e.fd);
         if (slot >= 0) {
+          lastRx_[slot] = now;
           if (e.type == Text) core_->onMessage((uint8_t)slot, (const char*)e.data, e.len);
           else core_->onBinary((uint8_t)slot, e.data, e.len);
         }
@@ -119,6 +138,21 @@ void WsTransport::loop() {
       }
     }
   }
+  for (int i = 0; i < ESPFACE_MAX_CLIENTS; i++) {
+    if (fds_[i] < 0) continue;
+    if ((uint32_t)(now - lastRx_[i]) >= ESPFACE_WS_IDLE_MS) { logf("ws slot %d idle, closing", i); lastRx_[i] = now; httpd_sess_trigger_close(hd_, fds_[i]); }
+    else if ((uint32_t)(now - lastPing_[i]) >= ESPFACE_WS_PING_MS) { lastPing_[i] = now; sendRaw(fds_[i], HTTPD_WS_TYPE_PING, nullptr, 0); }
+  }
+}
+
+bool WsTransport::sendRaw(int fd, httpd_ws_type_t type, const char* data, size_t len) {
+  if (!hd_ || fd < 0) return false;
+  httpd_ws_frame_t f = {};
+  f.type = type; f.final = true; f.payload = (uint8_t*)data; f.len = len;
+  xSemaphoreTake(mx_, portMAX_DELAY);
+  esp_err_t r = httpd_ws_send_frame_async(hd_, fd, &f);
+  xSemaphoreGive(mx_);
+  return r == ESP_OK;
 }
 
 bool WsTransport::sendFrame(uint8_t slot, const char* data, size_t len, bool first, bool last) {
@@ -132,6 +166,7 @@ bool WsTransport::sendFrame(uint8_t slot, const char* data, size_t len, bool fir
   xSemaphoreTake(mx_, portMAX_DELAY);
   esp_err_t r = httpd_ws_send_frame_async(hd_, fds_[slot], &f);
   xSemaphoreGive(mx_);
+  if (r != ESP_OK) { logf("ws slot %u send failed, closing", slot); httpd_sess_trigger_close(hd_, fds_[slot]); }
   return r == ESP_OK;
 }
 

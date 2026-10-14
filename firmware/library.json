@@ -9,5 +9,6 @@
   "platforms": ["espressif32"],
   "dependencies": { "bblanchon/ArduinoJson": "^7.0.0" },
   "headers": "espFace.h",
+  "build": { "flags": ["-fno-exceptions"] },
   "export": { "include": ["src", "examples", "library.properties", "README.md", "LICENSE"] }
 }

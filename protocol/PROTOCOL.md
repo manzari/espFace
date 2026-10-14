@@ -49,8 +49,9 @@ D→C upd              all current values (one message, may be large)
 
 - A client that reconnects sends `hello` with its stored token; if the device answers `ok:true` the session is authenticated without a PIN.
 - Any C→D message other than `hello` and `auth` before the session is authenticated is answered with `err` code 3 and dropped.
-- The device keeps at most `ESPFACE_MAX_CLIENTS` sessions (default 4). A fifth connection gets `err` code 9 on hello and is closed.
-- The device detects a dead client by the transport (WS close, BLE disconnect). There is no application-level ping.
+- The device keeps at most `ESPFACE_MAX_CLIENTS` sessions (default 4), counted across all transports. A fifth connection gets `err` code 9 (on a WebSocket right after the upgrade, on a stream on its first line) and is closed; a BLE central beyond the limit is disconnected without a message.
+- A session that is not authenticated within 30 s of opening (`ESPFACE_AUTH_TIMEOUT_MS`) gets `err` code 3 (`ref:"hello"`) and is closed.
+- The device detects a dead client by the transport (WS close, BLE disconnect). There is no application-level ping; WebSocket clients must answer WS ping control frames (browsers do this automatically), a WebSocket client that sends nothing for 60 s, pongs included, is closed.
 
 ### 3.1 Authentication
 
@@ -112,7 +113,7 @@ D→C `{"t":"ui","rev":7,"w":[widget,...]}`. `rev` increments on every rebuild a
 
 ### 4.5 upd
 
-D→C `{"t":"upd","v":{"<id>":value,...}}`. Values are batched, at most one message per 100 ms per client. A `set` is acknowledged by the echo of the value in the next `upd`. The first `upd` after `ui` contains every widget that has a value.
+D→C `{"t":"upd","v":{"<id>":value,...}}`. Values are batched, at most one message per 100 ms per client. A `set` is acknowledged by the echo of the value in the next `upd`, to the sender as well as to every other client on a page that shows the widget; there is no immediate reply. The first `upd` after `ui` contains every widget that has a value.
 
 ### 4.6 set
 
@@ -143,7 +144,7 @@ D→C `{"t":"prop","id":"temp","p":{...}}`. `p` contains any subset of the widge
 D→C `{"t":"dlg","id":"d1","kind":"confirm|prompt","msg":"Erase all?","def":"","title":"..."}`
 C→D `{"t":"dlg","id":"d1","ok":true,"v":"typed text"}` — `v` only for `prompt` with `ok:true`.
 
-The device sends the dialog to every connected client; the first answer is used and the device sends `{"t":"dlg","id":"d1","close":true}` to all clients. A dialog without an answer is closed by the device after `timeout` seconds (default 60) and treated as `ok:false`.
+The device sends the dialog to every connected client of the UI that opened it; the first answer from any authenticated client of that UI is used, regardless of who saw it first, and the device sends `{"t":"dlg","id":"d1","close":true}` to all clients. Later answers and answers from clients of another UI get `err` code 6. A client that authenticates while a dialog is open receives it after `ui` and `upd`, with `timeout` set to the remaining seconds. A dialog without an answer is closed by the device after `timeout` seconds (default 60) and treated as `ok:false`.
 
 ### 4.13 page
 
