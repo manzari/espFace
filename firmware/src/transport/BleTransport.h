@@ -5,6 +5,10 @@
 #ifdef ESPFACE_BT_CLASSIC
 #error "ESPFACE_BLE (NimBLE) and ESPFACE_BT_CLASSIC (Bluedroid SPP) cannot be combined in one build"
 #endif
+#include <sdkconfig.h>
+#if CONFIG_IDF_TARGET_ESP32S2
+#error "ESPFACE_BLE needs a chip with a Bluetooth LE radio; the ESP32-S2 has none"
+#endif
 #include <NimBLEDevice.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
