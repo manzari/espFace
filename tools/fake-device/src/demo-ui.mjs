@@ -55,6 +55,34 @@ export const initialValues = {
   name: "Boiler", pw: "", notes: "",
 };
 
+// --huge-ui: the demo UI plus `n` generated widgets (~100 KB of JSON at 400; the schema caps `w` at 500 entries).
+export function hugeUi(n = 400) {
+  const w = widgets.map((x) => ({ ...x }));
+  const values = { ...initialValues };
+  const kinds = ["label", "gauge", "switch", "slider", "number", "select", "led", "progress", "text", "display"];
+  const perGroup = 20, perPage = 200;
+  for (let i = 0; i < n; i++) {
+    const page = `p${Math.floor(i / perPage)}`, grp = `g${Math.floor(i / perGroup)}`;
+    if (i % perPage === 0) w.push({ id: page, ty: "page", lbl: `Bank ${Math.floor(i / perPage) + 1}`, icon: "memory" });
+    if (i % perGroup === 0) w.push({ id: grp, ty: "group", lbl: `Group ${Math.floor(i / perGroup) + 1}`, page, fold: true });
+    const id = `w${i}`, ty = kinds[i % kinds.length];
+    const base = { id, ty, lbl: `Widget ${i} ${ty}`, grp, page, hint: `Generated widget number ${i}. Long help text so that the ui message of the load test reaches about a hundred kilobytes.` };
+    switch (ty) {
+      case "label": w.push({ ...base, unit: "V", fmt: "%.2f" }); values[id] = (i % 100) / 7; break;
+      case "gauge": w.push({ ...base, min: 0, max: 100, unit: "%", style: ["arc", "round", "linear"][i % 3], zones: [{ from: 80, to: 100, color: "#ff0000" }] }); values[id] = i % 100; break;
+      case "switch": w.push({ ...base, on: "ON", off: "OFF" }); values[id] = i % 2 === 0; break;
+      case "slider": w.push({ ...base, min: 0, max: 255, step: 1 }); values[id] = i % 255; break;
+      case "number": w.push({ ...base, min: -100, max: 100, step: 0.5, spin: true }); values[id] = (i % 200) - 100; break;
+      case "select": w.push({ ...base, opts: ["Off", "Low", "Medium", "High", "Max"], style: i % 2 ? "seg" : "list" }); values[id] = i % 5; break;
+      case "led": w.push({ ...base, color: "#00ff00" }); values[id] = i % 3 === 0; break;
+      case "progress": w.push({ ...base, min: 0, max: 100 }); values[id] = i % 100; break;
+      case "text": w.push({ ...base, maxlen: 32 }); values[id] = `value ${i}`; break;
+      case "display": w.push({ ...base, digits: 5, unit: "rpm" }); values[id] = i * 3; break;
+    }
+  }
+  return { widgets: w, values };
+}
+
 // Value validation per widget type: returns true when v is acceptable.
 export function validValue(w, v) {
   const num = (x) => typeof x === "number" && Number.isFinite(x);

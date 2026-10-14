@@ -3,7 +3,7 @@
 import { createServer } from "node:http";
 import { randomBytes, createHmac, createHash, timingSafeEqual } from "node:crypto";
 import { WebSocketServer } from "ws";
-import { widgets as demoWidgets, initialValues, validValue } from "./demo-ui.mjs";
+import { widgets as demoWidgets, initialValues, validValue, hugeUi } from "./demo-ui.mjs";
 
 const PROTO_V = 1;
 const FLUSH_MS = 100;
@@ -21,8 +21,17 @@ export class FakeDevice {
     this.logHistory = opts.logHistory ?? 20;
     this.simulate = opts.simulate ?? true;
     this.quiet = opts.quiet ?? false;
-    this.widgets = (opts.widgets ?? demoWidgets).map((w) => ({ ...w }));
-    this.values = { ...(opts.values ?? initialValues) };
+    // Hardening knobs (README): bad-network and limit simulation.
+    this.dropEvery = opts.dropEvery ?? 0;        // close the socket after every N device->client messages
+    this.latency = opts.latency ?? 0;            // ms added to every message in both directions
+    this.slowUi = opts.slowUi ?? false;          // send `ui` as many small WebSocket fragments with delays
+    this.flakyAuth = opts.flakyAuth ?? false;    // the first correct auth is answered with err 5 once
+    this.fragmentSize = opts.fragmentSize ?? 512;
+    this.fragmentDelay = opts.fragmentDelay ?? 20;
+    const huge = opts.hugeUi ? hugeUi(opts.hugeUi === true ? 400 : Number(opts.hugeUi)) : null;
+    this.widgets = (opts.widgets ?? (huge ? huge.widgets : demoWidgets)).map((w) => ({ ...w }));
+    this.values = { ...(opts.values ?? (huge ? huge.values : initialValues)) };
+    this.flaked = false;
     this.rev = 1;
     this.bootAt = Date.now();
     this.tokens = new Set();
@@ -72,14 +81,50 @@ export class FakeDevice {
 
   // ---- connections -----------------------------------------------------
   onConnect(ws) {
-    const c = { ws, authed: false, nonce: null, page: this.firstPage(), dirty: new Set(), flushTimer: null, hello: false };
+    const c = { ws, authed: false, nonce: null, page: this.firstPage(), dirty: new Set(), flushTimer: null, hello: false, queue: [], pumping: false, sent: 0 };
     this.clients.add(c);
-    ws.on("message", (data, isBinary) => (isBinary ? this.onBinary(c, data) : this.onText(c, data)));
-    ws.on("close", () => { this.clients.delete(c); clearTimeout(c.flushTimer); });
+    const rx = (data, isBinary) => (isBinary ? this.onBinary(c, data) : this.onText(c, data));
+    ws.on("message", (data, isBinary) => (this.latency ? setTimeout(rx, this.latency, data, isBinary) : rx(data, isBinary)));
+    ws.on("close", () => { this.clients.delete(c); clearTimeout(c.flushTimer); c.queue.length = 0; });
     ws.on("error", () => {});
   }
 
-  send(c, msg) { if (c.ws.readyState === 1) c.ws.send(JSON.stringify(msg)); }
+  send(c, msg) {
+    if (c.ws.readyState !== 1) return;
+    const text = JSON.stringify(msg);
+    if (!this.latency && !this.slowUi && !this.dropEvery) return c.ws.send(text);
+    c.queue.push({ text, ui: msg.t === "ui" });
+    this.pump(c);
+  }
+
+  // Sequential sender so fragments, latency and drop counting never interleave.
+  pump(c) {
+    if (c.pumping) return;
+    const item = c.queue.shift();
+    if (!item) return;
+    c.pumping = true;
+    const done = () => { c.pumping = false; this.pump(c); };
+    const run = () => {
+      if (c.ws.readyState !== 1) { c.queue.length = 0; return done(); }
+      const drop = this.dropEvery && ++c.sent >= this.dropEvery;
+      const after = () => { if (drop) { c.sent = 0; c.ws.close(4000, "drop-every"); } done(); };
+      if (item.ui && this.slowUi) return this.sendFragmented(c, item.text, after);
+      c.ws.send(item.text, after);
+    };
+    if (this.latency) setTimeout(run, this.latency); else run();
+  }
+
+  sendFragmented(c, text, cb) {
+    const buf = Buffer.from(text, "utf8");
+    let off = 0;
+    const step = () => {
+      if (c.ws.readyState !== 1) return cb();
+      const end = Math.min(buf.length, off + this.fragmentSize);
+      const fin = end >= buf.length;
+      c.ws.send(buf.subarray(off, end), { fin, binary: false }, () => { off = end; if (fin) cb(); else setTimeout(step, this.fragmentDelay); });
+    };
+    step();
+  }
   err(c, code, msg, ref) { this.send(c, { t: "err", code, msg, ...(ref ? { ref } : {}) }); }
   broadcast(msg, filter = () => true) { for (const c of this.clients) if (c.authed && filter(c)) this.send(c, msg); }
 
@@ -127,6 +172,7 @@ export class FakeDevice {
       return this.send(c, { t: "auth", ok: false, left: LOCK_AFTER - this.failed });
     }
     this.failed = 0;
+    if (this.flakyAuth && !this.flaked) { this.flaked = true; return this.err(c, ERR.pin, "flaky auth", "auth"); }
     const tok = randomBytes(16).toString("hex");
     this.tokens.add(tok);
     this.send(c, { t: "auth", ok: true, tok });
@@ -343,11 +389,31 @@ export function hmacPin(pin, nonceHex, deviceId) {
 
 // ---- CLI ---------------------------------------------------------------
 if (process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/^.*\//, ""))) {
-  const args = Object.fromEntries(process.argv.slice(2).map((a) => { const [k, v] = a.replace(/^--/, "").split("="); return [k, v ?? true]; }));
+  const args = parseArgs(process.argv.slice(2));
   if (args.help) {
-    console.log("usage: espface-fake-device [--port=8080] [--pin=1234] [--name=Boiler] [--id=a1b2c3] [--no-sim]");
+    console.log("usage: espface-fake-device [--port=8080] [--pin=1234] [--name=Boiler] [--id=a1b2c3] [--no-sim]\n" +
+      "  hardening: [--drop-every N] [--latency ms] [--slow-ui] [--max-clients N] [--flaky-auth] [--huge-ui[=N]]");
     process.exit(0);
   }
-  const dev = new FakeDevice({ pin: args.pin, name: args.name, id: args.id, simulate: !args["no-sim"] });
+  const dev = new FakeDevice({
+    pin: args.pin, name: args.name, id: args.id, simulate: !args["no-sim"],
+    dropEvery: Number(args["drop-every"] ?? 0), latency: Number(args.latency ?? 0), slowUi: !!args["slow-ui"],
+    maxClients: args["max-clients"] !== undefined ? Number(args["max-clients"]) : undefined,
+    flakyAuth: !!args["flaky-auth"], hugeUi: args["huge-ui"] === true ? true : args["huge-ui"] ? Number(args["huge-ui"]) : false,
+  });
   dev.listen(Number(args.port ?? process.env.PORT ?? 8080));
+}
+
+// --k=v, --k v (when the next arg is not a flag) and bare --k.
+export function parseArgs(argv) {
+  const out = {};
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (!a.startsWith("--")) continue;
+    const [k, v] = a.slice(2).split("=");
+    if (v !== undefined) out[k] = v;
+    else if (i + 1 < argv.length && !argv[i + 1].startsWith("--") && !["slow-ui", "flaky-auth", "no-sim", "help"].includes(k)) out[k] = argv[++i];
+    else out[k] = true;
+  }
+  return out;
 }
