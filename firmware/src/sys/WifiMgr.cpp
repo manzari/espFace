@@ -22,10 +22,44 @@ void WifiMgr::connect(const char* ssid, const char* pass, bool save, uint32_t ti
   keepAp_ = state_ == Ap || keepAp_;
   WiFi.mode(keepAp_ ? WIFI_AP_STA : WIFI_STA);
   WiFi.begin(ssid, pass && pass[0] ? pass : nullptr);
-  deadline_ = nowMs() + timeoutMs;
-  fallbackAp_ = true;
+  timeoutMs_ = timeoutMs; deadline_ = nowMs() + timeoutMs;
+  fallbackAp_ = true; attempt_ = true; retrying_ = false; lost_ = false; fails_ = 0;
   setState(Connecting);
   logf("connecting to %s", ssid);
+}
+
+// One more STA attempt with the stored credentials (after a lost link or out of the AP fallback).
+void WifiMgr::retryBegin(uint32_t now) {
+  Str ssid, pass;
+  retrying_ = false;
+  if (!store_ || !store_->getStr("ssid", ssid) || !ssid.length()) return;
+  store_->getStr("pass", pass);
+  bool ap = state_ == Ap || keepAp_;
+  WiFi.mode(ap ? WIFI_AP_STA : WIFI_STA);
+  WiFi.disconnect(false, false);
+  WiFi.begin(ssid.c_str(), pass.length() ? pass.c_str() : nullptr);
+  attempt_ = true; deadline_ = now + timeoutMs_; reconnects_++;
+  logf("wifi retry %u", (unsigned)fails_);
+  if (state_ != Ap) setState(Connecting);
+}
+
+void WifiMgr::scheduleRetry(uint32_t now) {
+  retrying_ = false;
+  if (!maxS_) return;
+  uint32_t s = minS_ ? minS_ : 1;
+  if (state_ == Ap || keepAp_) s = maxS_;
+  else for (uint8_t i = 1; i < fails_ && s < maxS_; i++) s *= 2;
+  if (s > maxS_) s = maxS_;
+  retryAt_ = now + s * 1000u; retrying_ = true;
+  logf("wifi down, next try in %lu s", (unsigned long)s);
+}
+
+void WifiMgr::onConnected(uint32_t now) {
+  logf("connected, ip %s", WiFi.localIP().toString().c_str());
+  fails_ = 0; lost_ = false; attempt_ = false; retrying_ = false;
+  bool ap = state_ == Ap || keepAp_;
+  startMdns(); setState(Connected);          // mDNS is re-announced on every (re)connect
+  if (ap) { keepAp_ = true; apOffAt_ = now + 5000; }   // the AP goes down once the status went out
 }
 
 void WifiMgr::autoConnect(uint32_t timeoutMs) {
@@ -74,19 +108,26 @@ void WifiMgr::setState(State s) {
 
 void WifiMgr::loop() {
   if (state_ == Ap || keepAp_) dns_.processNextRequest();
-  if (state_ == Connecting) {
-    if (WiFi.status() == WL_CONNECTED) {
-      logf("connected, ip %s", WiFi.localIP().toString().c_str());
-      startMdns(); setState(Connected);
-      if (keepAp_) apOffAt_ = nowMs() + 5000;   // let the provisioning client read the status first
-    } else if ((int32_t)(nowMs() - deadline_) >= 0) {
-      logf("wifi timeout");
-      setState(Failed);
-      if (fallbackAp_) startAp(); else { keepAp_ = false; WiFi.mode(WIFI_STA); }
+  uint32_t now = nowMs();
+  bool sta = WiFi.status() == WL_CONNECTED;
+  if (state_ == Connected) {
+    if (!sta) {   // link dropped: the stack's auto-reconnect is the first attempt, then our retries with backoff
+      lost_ = true; fails_ = 0; fallbackAp_ = false; attempt_ = true; retrying_ = false; deadline_ = now + timeoutMs_;
+      setState(Connecting);
+    } else if (keepAp_ && (int32_t)(now - apOffAt_) >= 0) { keepAp_ = false; dns_.stop(); WiFi.softAPdisconnect(true); WiFi.mode(WIFI_STA); }
+  } else if (sta && (attempt_ || retrying_ || state_ == Failed || state_ == Idle)) {
+    onConnected(now);
+  } else if (attempt_) {
+    if ((int32_t)(now - deadline_) >= 0) {
+      attempt_ = false;
+      if (fails_ < 255) fails_++;
+      if (fallbackAp_ && !lost_) { logf("wifi timeout"); setState(Failed); fallbackAp_ = false; startAp(); }
+      else if (lost_ && apAfter_ && fails_ >= apAfter_ && state_ != Ap) { logf("wifi lost for %u tries, access point up", (unsigned)fails_); startAp(); }
+      else if (state_ != Ap) { keepAp_ = false; WiFi.mode(WIFI_STA); setState(Failed); }
+      scheduleRetry(now);
     }
-  } else if (state_ == Connected) {
-    if (WiFi.status() != WL_CONNECTED) { deadline_ = nowMs() + 30000; fallbackAp_ = false; setState(Connecting); }
-    else if (keepAp_ && (int32_t)(nowMs() - apOffAt_) >= 0) { keepAp_ = false; dns_.stop(); WiFi.softAPdisconnect(true); WiFi.mode(WIFI_STA); }
+  } else if (retrying_ && (int32_t)(now - retryAt_) >= 0) {
+    retryBegin(now);
   }
   if (scanMask_) {
     int n = WiFi.scanComplete();

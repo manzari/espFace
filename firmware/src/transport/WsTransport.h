@@ -10,6 +10,7 @@ namespace espface {
 
 // WebSocket transport on ESP-IDF esp_http_server. Also serves the bootstrap page, captive-portal probes and,
 // with ESPFACE_EMBED_WEB, the gzipped renderer at /r/1/app.js and /r/1/app.css.
+// Half-dead sockets: a ping every ESPFACE_WS_PING_MS, a client silent for ESPFACE_WS_IDLE_MS is closed.
 class WsTransport : public Transport {
  public:
   const char* name() const override { return "ws"; }
@@ -26,7 +27,7 @@ class WsTransport : public Transport {
   bool running() const { return hd_ != nullptr; }
 
  private:
-  enum EvType : uint8_t { Open, Close, Text, Binary };
+  enum EvType : uint8_t { Open, Close, Text, Binary, Pong };
   struct Event { EvType type; int fd; uint8_t* data; size_t len; };
   static esp_err_t wsHandler(httpd_req_t* req);
   static esp_err_t pageHandler(httpd_req_t* req);
@@ -40,7 +41,9 @@ class WsTransport : public Transport {
   httpd_handle_t hd_ = nullptr;
   QueueHandle_t q_ = nullptr;
   SemaphoreHandle_t mx_ = nullptr;
+  bool sendRaw(int fd, httpd_ws_type_t type, const char* data, size_t len);
   int fds_[ESPFACE_MAX_CLIENTS];
+  uint32_t lastRx_[ESPFACE_MAX_CLIENTS], lastPing_[ESPFACE_MAX_CLIENTS];
   uint16_t port_ = 80;
   const char* html_ = nullptr; size_t htmlLen_ = 0; bool htmlGz_ = false;
   const char* host_ = "";
