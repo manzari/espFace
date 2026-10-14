@@ -56,4 +56,4 @@ The `ui` message is chunked into MTU-sized packets, so a large UI takes a while.
 
 ## Persist does not work
 
-`.persist()` uses the widget id as the NVS key, which allows 15 characters at most. Longer ids are rejected by the protocol anyway (`^[A-Za-z0-9_]{1,15}$`). Persisted values are restored before `setup()` returns.
+`.persist()` uses the widget id as the NVS key, which allows 15 characters at most. Longer ids are rejected by the protocol anyway (`^[A-Za-z0-9_]{1,15}$`). Persisted values are restored before `setup()` returns. They live in the NVS namespace of their UI (`efv_<ui name>`), so renaming a UI with `addUi()` drops its saved values.

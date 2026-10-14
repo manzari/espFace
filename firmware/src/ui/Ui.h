@@ -151,8 +151,13 @@ class PropRef {
 class Ui {
  public:
   explicit Ui(const char* name = "main") : name_(name) {}
-  void attach(UiHost* host, Store* store) { host_ = host; store_ = store; }
+  ~Ui() { delete store_; }
+  Ui(const Ui&) = delete;
+  Ui& operator=(const Ui&) = delete;
+  void attach(UiHost* host, Store* store) { host_ = host; base_ = store; delete store_; store_ = nullptr; }
   const char* name() const { return name_; }
+  // NVS namespace of persisted values: "efv_<name>", or "efv_<fnv1a hex>" for names over 11 characters
+  static void persistNs(const char* name, char out[16]);
 
   // per-UI PIN override: nullptr = use the global PIN, "" = no PIN for this UI
   Ui& pin(const char* p) { pinSet_ = true; pin_ = p ? p : ""; return *this; }
@@ -244,11 +249,13 @@ class Ui {
   void fire(uint16_t idx, const Value& v);
   bool validate(const Widget& w, Value& v) const;
   void persistKey(const Widget& w, char out[16]) const;
+  Store* store();
   void dialogOpen(const char* id, const char* kind, const char* msg, const char* def, const char* title, DialogFn cb, uint16_t timeoutS);
 
 
   const char* name_;
   UiHost* host_ = nullptr;
+  Store* base_ = nullptr;
   Store* store_ = nullptr;
   bool pinSet_ = false;
   Str pin_;

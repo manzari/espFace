@@ -262,6 +262,11 @@ void test_events_hold_and_click() {
   TEST_ASSERT_EQUAL(0, last);
 }
 
+static bool nsGet(MemStore& st, const char* ui, const char* key, Str& out) {
+  char ns[16]; Ui::persistNs(ui, ns);
+  Store* s = st.open(ns); bool ok = s->getStr(key, out); delete s; return ok;
+}
+
 void test_persist_restores_value() {
   MemStore store;
   {
@@ -273,8 +278,9 @@ void test_persist_restores_value() {
   a.ui().slider("target", "T", 0, 100).persist().onChange([&](float v) { fired++; seen = v; });
   int s = a.onOpen(&tr); a.onMessage((uint8_t)s, "{\"t\":\"hello\",\"v\":1,\"client\":\"app\"}", 36);
   a.onMessage((uint8_t)s, "{\"t\":\"set\",\"id\":\"target\",\"v\":66}", 34);
-  Str raw; TEST_ASSERT_TRUE(store.getStr("target", raw));
+  Str raw; TEST_ASSERT_TRUE(nsGet(store, "main", "target", raw));
   TEST_ASSERT_EQUAL_STRING("f66", raw.c_str());
+  TEST_ASSERT_FALSE(store.getStr("target", raw));
   TEST_ASSERT_EQUAL(1, fired);
   Core b; b.setId("a1b2c3"); b.begin("B", &store);
   int fired2 = 0; float seen2 = 0;
@@ -284,6 +290,31 @@ void test_persist_restores_value() {
   b.loop();
   TEST_ASSERT_EQUAL(1, fired2);
   TEST_ASSERT_EQUAL_FLOAT(66.f, seen2);
+}
+
+void test_persist_namespaces() {
+  char a[16], b[16], m[16];
+  Ui::persistNs("main", m); TEST_ASSERT_EQUAL_STRING("efv_main", m);
+  Ui::persistNs("provisioning_a", a); Ui::persistNs("provisioning_b", b);
+  TEST_ASSERT_EQUAL(12, strlen(a)); TEST_ASSERT_EQUAL(0, strncmp(a, "efv_", 4)); TEST_ASSERT_NOT_EQUAL(0, strcmp(a, b));
+  MemStore store;
+  {
+    MemTransport tr; Core c; c.setId("a1b2c3"); c.addTransport(&tr); c.begin("A", &store); c.setPin("1234", true);
+    c.ui().text("pin", "Pin", 8).persist(); c.ui().text("ssid", "SSID").persist();
+    c.ui().slider("target", "T", 0, 100).persist();
+    Ui& setup = c.addUi("setup"); setup.slider("target", "T", 0, 100).persist();
+    TEST_ASSERT_TRUE(c.ui().set("pin", "9999")); TEST_ASSERT_TRUE(c.ui().set("ssid", "evil"));
+    TEST_ASSERT_TRUE(c.ui().set("target", 10)); TEST_ASSERT_TRUE(setup.set("target", 20));
+  }
+  Str raw;
+  TEST_ASSERT_TRUE(store.getStr("pin", raw)); TEST_ASSERT_EQUAL_STRING("1234", raw.c_str());
+  TEST_ASSERT_FALSE(store.getStr("ssid", raw));
+  TEST_ASSERT_TRUE(nsGet(store, "main", "pin", raw)); TEST_ASSERT_EQUAL_STRING("s9999", raw.c_str());
+  Core c; c.setId("a1b2c3"); c.begin("B", &store);
+  Ui& setup = c.addUi("setup");
+  c.ui().slider("target", "T", 0, 100).persist(); setup.slider("target", "T", 0, 100).persist();
+  TEST_ASSERT_EQUAL_FLOAT(10.f, c.ui().get("target")->asFloat());
+  TEST_ASSERT_EQUAL_FLOAT(20.f, setup.get("target")->asFloat());
 }
 
 void test_page_filter() {
@@ -1478,6 +1509,7 @@ int main() {
   RUN_TEST(test_set_validation_callbacks_and_bind);
   RUN_TEST(test_events_hold_and_click);
   RUN_TEST(test_persist_restores_value);
+  RUN_TEST(test_persist_namespaces);
   RUN_TEST(test_page_filter);
   RUN_TEST(test_dialogs_props_toast_log_chart);
   RUN_TEST(test_sys_info_time_reboot_and_errors);

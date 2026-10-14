@@ -31,21 +31,35 @@ bool Store::putValue(const char* key, const Value& v) {
   return putStr(key, s);
 }
 
+int MemStore::find(const char* key) const {
+  const auto& e = root_->e_;
+  for (size_t i = 0; i < e.size(); i++) if (e[i].ns == ns_ && strEq(e[i].k, key)) return (int)i;
+  return -1;
+}
+
 bool MemStore::getStr(const char* key, Str& out) {
-  for (size_t i = 0; i < n_; i++) if (strEq(e_[i].k, key)) { out = e_[i].v; return true; }
-  return false;
+  int i = find(key);
+  if (i < 0) return false;
+  out = root_->e_[i].v; return true;
 }
 
 bool MemStore::putStr(const char* key, const Str& v) {
-  for (size_t i = 0; i < n_; i++) if (strEq(e_[i].k, key)) { e_[i].v = v; return true; }
-  if (n_ >= MAX) return false;
-  e_[n_].k = key; e_[n_].v = v; n_++;
+  int i = find(key);
+  if (i >= 0) { root_->e_[i].v = v; return true; }
+  if (root_->e_.size() >= MAX) return false;
+  root_->e_.push_back({ns_, Str(key), v});
   return true;
 }
 
 bool MemStore::remove(const char* key) {
-  for (size_t i = 0; i < n_; i++) if (strEq(e_[i].k, key)) { e_[i] = e_[n_ - 1]; e_[n_ - 1].k = ""; e_[n_ - 1].v = ""; n_--; return true; }
-  return false;
+  int i = find(key);
+  if (i < 0) return false;
+  root_->e_.erase(root_->e_.begin() + i); return true;
+}
+
+void MemStore::clear() {
+  auto& e = root_->e_;
+  for (size_t i = e.size(); i-- > 0;) if (e[i].ns == ns_) e.erase(e.begin() + i);
 }
 
 }  // namespace espface

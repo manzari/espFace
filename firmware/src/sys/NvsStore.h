@@ -12,6 +12,7 @@ class NvsStore : public Store {
   bool putStr(const char* key, const Str& v) override { return prefs_.putString(key, v) > 0 || v.length() == 0; }
   bool remove(const char* key) override { return prefs_.remove(key); }
   void clear() override { prefs_.clear(); }
+  Store* open(const char* ns) override { NvsStore* s = new NvsStore; s->begin(ns); return s; }
  private:
   Preferences prefs_;
 };

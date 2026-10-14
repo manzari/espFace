@@ -41,7 +41,7 @@ face.ui().show("reset", true);
 
 ## Persisted inputs
 
-`.persist()` stores an input in NVS under the widget id and restores it before `setup()` returns. `onChange` fires once with the restored value. Because the id doubles as the NVS key, ids are limited to 15 characters (`A-Za-z0-9_`).
+`.persist()` stores an input in NVS under the widget id and restores it before `setup()` returns. `onChange` fires once with the restored value. Because the id doubles as the NVS key, ids are limited to 15 characters (`A-Za-z0-9_`). Each UI has its own NVS namespace, `efv_<ui name>` (`efv_main` for `face.ui()`; names over 11 characters are hashed), so a widget id like `pin` or `ssid` never touches the library's settings in the `espface` namespace, and two UIs can persist the same id independently. Renaming a UI starts it with empty values.
 
 ```cpp
 ui.slider("target", "Target", 20, 90, 1, "°C").persist().onChange([](float v) { target = v; });
