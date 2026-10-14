@@ -26,6 +26,18 @@ namespace espface { using Str = std::string; }
 #ifndef ESPFACE_MAX_MSG
 #define ESPFACE_MAX_MSG 2048
 #endif
+#ifndef ESPFACE_AUTH_TIMEOUT_MS
+#define ESPFACE_AUTH_TIMEOUT_MS 30000   // a session that never authenticates is closed after this
+#endif
+#ifndef ESPFACE_WS_PING_MS
+#define ESPFACE_WS_PING_MS 20000        // WebSocket ping interval
+#endif
+#ifndef ESPFACE_WS_IDLE_MS
+#define ESPFACE_WS_IDLE_MS 60000        // WebSocket client closed after this long without a frame (incl. pong)
+#endif
+#ifndef ESPFACE_WS_SOCKET_TIMEOUT_S
+#define ESPFACE_WS_SOCKET_TIMEOUT_S 10  // esp_http_server recv/send wait timeout
+#endif
 #ifndef ESPFACE_BLE_MTU
 #define ESPFACE_BLE_MTU 512
 #endif

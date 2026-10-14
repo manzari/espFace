@@ -10,6 +10,7 @@ class Ui;
 struct Client {
   bool used = false;
   bool authed = false;
+  bool ready = false;           // ui and upd delivered, onConnect fired
   bool helloSeen = false;
   bool isWeb = false;
   uint8_t slot = 0;

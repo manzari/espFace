@@ -232,6 +232,9 @@ class Ui {
   bool answerDialog(const char* id, bool ok, const char* text);
   void loop(uint32_t now);
   void markAllDirty(uint8_t slotBit);
+  struct Dialog { Str id, kind, msg, def, title; DialogFn cb; uint32_t deadline; };
+  const std::vector<Dialog>& dialogs() const { return dialogs_; }     // open dialogs, re-sent to late joiners
+  void writeDialog(JsonWriter& jw, const Dialog& d, uint32_t now) const;
 
  private:
   friend class WidgetRef;
@@ -241,9 +244,8 @@ class Ui {
   void fire(uint16_t idx, const Value& v);
   bool validate(const Widget& w, Value& v) const;
   void persistKey(const Widget& w, char out[16]) const;
-  void dialogSend(const char* id, const char* kind, const char* msg, const char* def, const char* title, uint16_t timeoutS);
+  void dialogOpen(const char* id, const char* kind, const char* msg, const char* def, const char* title, DialogFn cb, uint16_t timeoutS);
 
-  struct Dialog { Str id; DialogFn cb; uint32_t deadline; bool open; };
 
   const char* name_;
   UiHost* host_ = nullptr;

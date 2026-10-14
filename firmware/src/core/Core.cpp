@@ -82,11 +82,11 @@ int Core::onOpen(Transport* t) {
 void Core::onClose(uint8_t slot) {
   Client* c = client(slot);
   if (!c || !c->used) return;
-  bool wasAuthed = c->authed;
+  bool wasReady = c->ready;
   if (closeHook) closeHook(slot);
   ClientInfo info{slot, c->tr ? c->tr->name() : "", c->isWeb};
   c->reset(); c->slot = slot;
-  if (wasAuthed && onDisconnect_) onDisconnect_(info);
+  if (wasReady && onDisconnect_) onDisconnect_(info);
 }
 
 void Core::onBinary(uint8_t slot, const uint8_t* data, size_t len) {
@@ -133,11 +133,8 @@ void Core::sendHello(Client& c, bool ok, const char* nonce, uint32_t lock) {
   });
 }
 
+// Slots are the client limit: a transport that finds no free slot answers err 9 itself and closes.
 void Core::handleHello(Client& c, void* doc) {
-  if (clients() >= ESPFACE_MAX_CLIENTS && !c.authed) {
-    uint8_t authed = 0; for (auto& o : clients_) if (o.used && o.authed && o.slot != c.slot) authed++;
-    if (authed >= ESPFACE_MAX_CLIENTS) { sendErr(c.slot, 9, "too many clients", "hello"); if (c.tr) c.tr->close(c.slot); return; }
-  }
   c.helloSeen = true;
   const char* kind = DOC["client"] | "app";
   c.isWeb = strcmp(kind, "web") == 0;
@@ -175,8 +172,14 @@ void Core::afterAuth(Client& c) {
   c.authed = true;
   Ui& u = uiFor(c);
   send(c.slot, [&](JsonWriter& jw) { u.writeUi(jw); });
+  if (!c.authed) return;   // the transport reported the close while the ui streamed out
   sendFullUpd(c);
-  for (uint16_t i = 0; i < u.count(); i++) if (u.at(i).ty == WType::Log) u.logHistory(i, [&](const Str& line) { FrameSink s(*c.tr, c.slot); s.write(line.c_str(), line.length()); s.end(); });
+  if (!c.authed) return;
+  for (uint16_t i = 0; i < u.count() && c.authed; i++) if (u.at(i).ty == WType::Log) u.logHistory(i, [&](const Str& line) { if (!c.authed) return; FrameSink s(*c.tr, c.slot); s.write(line.c_str(), line.length()); s.end(); });
+  uint32_t now = nowMs();
+  for (size_t i = 0; i < u.dialogs().size() && c.authed; i++) send(c.slot, [&](JsonWriter& jw) { u.writeDialog(jw, u.dialogs()[i], now); });
+  if (!c.authed) return;
+  c.ready = true;
   if (onConnect_) onConnect_(ClientInfo{c.slot, c.tr ? c.tr->name() : "", c.isWeb});
 }
 
@@ -291,7 +294,15 @@ void Core::loop() {
   for (auto t : trs_) t->loop();
   for (auto u : uis_) u->loop(now);
   if (timeValid_ && (!clockAt_ || (uint32_t)(now - clockAt_) >= 60000u)) { clockAt_ = now ? now : 1; for (auto u : uis_) u->tickClocks(time()); }
-  for (auto& c : clients_) if (c.used && c.authed && (uint32_t)(now - c.lastFlush) >= ESPFACE_FLUSH_MS) flush(c);
+  for (auto& c : clients_) {
+    if (!c.used) continue;
+    if (c.authed) { if ((uint32_t)(now - c.lastFlush) >= ESPFACE_FLUSH_MS) flush(c); continue; }
+    if ((uint32_t)(now - c.connectedAt) >= ESPFACE_AUTH_TIMEOUT_MS) {   // never authenticated: free the slot
+      c.connectedAt = now;
+      sendErr(c.slot, 3, "auth timeout", "hello");
+      if (c.tr) c.tr->close(c.slot);
+    }
+  }
   if (rebootPending_ && (int32_t)(now - rebootAt_) >= 0) {
     rebootPending_ = false;
     if (onReboot_) onReboot_(rebootReason_);

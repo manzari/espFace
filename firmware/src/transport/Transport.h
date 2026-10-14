@@ -32,20 +32,22 @@ class Transport {
 class FrameSink : public Sink {
  public:
   FrameSink(Transport& t, uint8_t slot) : t_(t), slot_(slot) {}
+  // Stops after the first failed frame (client gone): the rest of the message is dropped, not sent.
   void write(const char* data, size_t len) override {
-    while (len) {
+    while (len && ok_) {
       size_t take = sizeof buf_ - n_; if (take > len) take = len;
       memcpy(buf_ + n_, data, take); n_ += take; data += take; len -= take;
-      if (n_ == sizeof buf_) { t_.sendFrame(slot_, buf_, n_, first_, false); first_ = false; n_ = 0; }
+      if (n_ == sizeof buf_) { ok_ = t_.sendFrame(slot_, buf_, n_, first_, false); first_ = false; n_ = 0; }
     }
   }
-  void end() override { t_.sendFrame(slot_, buf_, n_, first_, true); n_ = 0; first_ = true; }
+  void end() override { if (ok_) ok_ = t_.sendFrame(slot_, buf_, n_, first_, true); n_ = 0; first_ = true; }
+  bool ok() const { return ok_; }
  private:
   Transport& t_;
   uint8_t slot_;
   char buf_[ESPFACE_FRAME_SIZE];
   size_t n_ = 0;
-  bool first_ = true;
+  bool first_ = true, ok_ = true;
 };
 
 }  // namespace espface
