@@ -11,7 +11,7 @@ static Value toValue(JsonVariantConst v) {
   if (v.is<JsonArrayConst>()) {
     JsonArrayConst a = v.as<JsonArrayConst>();
     if (a.size() == 2 && a[0].is<float>() && a[1].is<float>() && !a[0].is<bool>()) return Value::ofPair((int16_t)a[0].as<float>(), (int16_t)a[1].as<float>());
-    Str raw; serializeJson(v, raw); return Value::ofRaw(raw);
+    return Value();   // other arrays only fit output widgets (table, map), which reject client sets anyway
   }
   if (v.is<float>()) {
     float f = v.as<float>();

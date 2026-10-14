@@ -995,9 +995,9 @@ void test_stream_transport_end_to_end() {
   // a close requested by the core is applied in the next loop
   r.tr.close((uint8_t)r.tr.slot()); TEST_ASSERT_TRUE(r.tr.open()); r.core.loop(); TEST_ASSERT_FALSE(r.tr.open());
   // idle timeout
-  r.tr.setIdleTimeout(1);
+  r.tr.setIdleTimeout(100);   // wide enough that a slow (ASAN) loop does not hit it while the hello is processed
   r.send("{\"t\":\"hello\",\"v\":1,\"client\":\"app\"}\n"); TEST_ASSERT_TRUE(r.tr.open());
-  uint32_t t0 = nowMs(); while (nowMs() - t0 < 3) {}
+  uint32_t t0 = nowMs(); while (nowMs() - t0 < 110) {}
   r.core.loop(); TEST_ASSERT_FALSE(r.tr.open());
   r.tr.setIdleTimeout(0);
   // open on begin, and too-many-clients as a raw err line when no slot is free
