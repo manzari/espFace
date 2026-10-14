@@ -45,7 +45,7 @@ namespace espface { using Str = std::string; }
 #define ESPFACE_BLE_MAX_CONN 2
 #endif
 #define ESPFACE_PROTO_VERSION 1
-#define ESPFACE_LIB_VERSION "0.1.0"
+#define ESPFACE_LIB_VERSION "1.0.0"
 
 namespace espface {
 

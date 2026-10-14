@@ -2,6 +2,7 @@
 // Bootstrap page served by the device: loads the hosted renderer, falls back to a hint when offline.
 // With ESPFACE_EMBED_WEB the renderer is served by the device itself from /r/1/ (see embed.h).
 #ifndef ESPFACE_RENDERER_HOST
+// Single source of the default renderer host (decided 2026-10-14); override with -DESPFACE_RENDERER_HOST="\"https://...\"".
 #define ESPFACE_RENDERER_HOST "https://espface.manzari.dev"
 #endif
 #ifdef ESPFACE_EMBED_WEB
