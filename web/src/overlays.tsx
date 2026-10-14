@@ -53,7 +53,7 @@ export function PinDialog() {
   useTick(1000);
   const [pin, setPin] = useState("");
   const [busy, setBusy] = useState(false);
-  useEffect(() => { setBusy(false); }, [store.conn, store.authLeft]);
+  useEffect(() => { setBusy(false); }, [store.version("conn")]);
   if (store.conn !== "pin" && store.conn !== "locked") return null;
   const locked = store.conn === "locked";
   const lockLeft = Math.max(0, Math.ceil((store.lockUntil - Date.now()) / 1000));

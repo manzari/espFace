@@ -50,6 +50,7 @@ a { color: var(--accent); }
 .has-bottomnav .main { padding-bottom: 80px; }
 .banner { padding: 8px 16px; background: var(--warn); color: #fff; text-align: center; font-size: .9rem; }
 .banner.err { background: var(--danger); }
+.banner .link { background: none; border: 0; color: inherit; text-decoration: underline; padding: 0 4px; font: inherit; cursor: pointer; }
 
 /* layout */
 .blocks { display: flex; flex-direction: column; gap: 12px; }

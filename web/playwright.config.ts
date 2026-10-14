@@ -9,5 +9,7 @@ export default defineConfig({
     baseURL: process.env.E2E_BASE ?? "http://localhost:4173",
     viewport: { width: 420, height: 800 },
     hasTouch: true,
+    // precise heap numbers and window.gc for the reconnect leak test
+    launchOptions: { args: ["--enable-precise-memory-info", "--js-flags=--expose-gc"] },
   },
 });

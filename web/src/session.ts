@@ -1,6 +1,6 @@
 import { c2d, decode, encode } from "./proto/codec";
 import { hmacPin } from "./proto/hmac";
-import type { D2C, Value } from "./proto/types";
+import type { D2C, ErrMsg, Value } from "./proto/types";
 import type { Store } from "./store";
 import { WsClient } from "./transport/ws";
 
@@ -15,13 +15,26 @@ export class Session {
   ws: WsClient;
   private lockTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingPin: string | null = null;
+  private lastPin: string | null = null;
+  private pinRetried = false;
+  private onVisibility = () => { if (typeof document === "undefined") return; if (document.hidden) this.ws.pause(); else this.ws.resume(); };
 
-  constructor(public store: Store, public host: string) {
-    this.ws = new WsClient(host, { onOpen: () => this.onOpen(), onClose: () => this.onClose(), onMessage: (t) => this.onText(t) });
+  constructor(public store: Store, public host: string, opts: { backoff?: (attempt: number) => number } = {}) {
+    this.ws = new WsClient(host, { onOpen: () => this.onOpen(), onClose: () => this.onClose(), onMessage: (t) => this.onText(t) }, opts);
   }
 
-  start() { this.store.setConn("connecting"); this.ws.connect(); }
-  stop() { this.ws.close(); }
+  start() {
+    this.store.setConn("connecting");
+    this.ws.connect();
+    if (typeof document !== "undefined") document.addEventListener("visibilitychange", this.onVisibility);
+  }
+
+  stop() {
+    if (typeof document !== "undefined") document.removeEventListener("visibilitychange", this.onVisibility);
+    if (this.lockTimer) clearTimeout(this.lockTimer);
+    this.lockTimer = null;
+    this.ws.close();
+  }
 
   private tokenKey(id: string) { return `espface.tok.${id}`; }
   private token(): string | undefined {
@@ -34,6 +47,7 @@ export class Session {
     this.send(c2d.hello(this.token()));
   }
 
+  // The UI model stays (last known state is shown while reconnecting); only per-connection state is reset.
   private onClose() {
     if (this.store.conn !== "locked") this.store.setConn("offline");
     this.store.reset();
@@ -45,6 +59,7 @@ export class Session {
     this.store.apply(m);
     if (m.t === "hello") this.onHello(m);
     else if (m.t === "auth") this.onAuth(m);
+    else if (m.t === "err") this.onErr(m);
   }
 
   private onHello(m: Extract<D2C, { t: "hello" }>) {
@@ -62,7 +77,17 @@ export class Session {
       return this.authenticated();
     }
     if (m.lock) return this.locked(m.lock);
+    this.lastPin = null;
     this.store.setConn("pin", m.left);
+    this.send(c2d.hello());
+  }
+
+  // err 5 on auth without an auth reply (flaky device): retry the same PIN once with a fresh nonce, then ask again.
+  private onErr(m: ErrMsg) {
+    if (m.ref !== "auth" || this.store.conn === "ready") return;
+    if (this.lastPin && !this.pinRetried) { this.pinRetried = true; this.pendingPin = this.lastPin; this.send(c2d.hello()); return; }
+    this.lastPin = null;
+    this.store.setConn("pin", this.store.authLeft);
     this.send(c2d.hello());
   }
 
@@ -74,6 +99,8 @@ export class Session {
   }
 
   private authenticated() {
+    this.lastPin = null;
+    this.pinRetried = false;
     this.store.setConn("ready");
     this.send(c2d.time());
     const first = this.store.firstPage();
@@ -82,6 +109,7 @@ export class Session {
 
   async submitPin(pin: string) {
     const d = this.store.device;
+    this.lastPin = pin;
     if (!d?.nonce) { this.pendingPin = pin; this.send(c2d.hello()); return; }
     const mac = await hmacPin(pin, d.nonce, d.id);
     d.nonce = undefined;

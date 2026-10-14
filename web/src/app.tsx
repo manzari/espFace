@@ -27,10 +27,19 @@ function HostPrompt({ onPick }: { onPick: (h: string) => void }) {
   );
 }
 
+// Shown above the last known UI while the socket is down; the widgets stay visible and are refreshed on reconnect.
 function Banner() {
   useSub("conn");
   useTick(1000);
-  if (store.conn === "offline") return <div class="banner err">Connection lost, reconnecting</div>;
+  if (store.conn === "offline") {
+    const left = Math.max(0, Math.ceil(((session?.ws.retryAt ?? 0) - Date.now()) / 1000));
+    const why = store.busy ? "Device is full (too many clients)" : "Connection lost";
+    return (
+      <div class="banner err" data-reconnect={left}>
+        {why}, reconnecting{left > 0 ? ` in ${left} s` : ""} <button class="link" onClick={() => session?.ws.reconnect(0)}>retry now</button>
+      </div>
+    );
+  }
   if (store.conn === "connecting") return <div class="banner">Connecting to {session?.host}</div>;
   return null;
 }

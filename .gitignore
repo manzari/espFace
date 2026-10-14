@@ -4,3 +4,13 @@ node_modules/
 firmware/test_output/
 firmware/footprint.md
 .claude/worktrees/
+docs/site/.vitepress/dist/
+docs/site/.vitepress/cache/
+docs/site/protocol/index.md
+docs/site/reference/espface.md
+docs/site/reference/ui.md
+docs/site/reference/widgetref.md
+docs/site/reference/propref.md
+docs/site/guide/icons-list.md
+web/dist/
+web/test-results/

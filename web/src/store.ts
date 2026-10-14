@@ -13,6 +13,10 @@ export interface PageLayout { id: string; lbl: string; icon?: string; blocks: Bl
 
 const UPTIME_LIMIT = 2 ** 40;
 const CONSOLE_CAP = 500;
+// Hard bounds on client-side buffers, independent of what a device asks for (RAM soak).
+export const CHART_MAX_POINTS = 5000;
+export const LOG_MAX_LINES = 2000;
+const DIALOG_CAP = 10;
 const STRUCTURAL = ["vis", "page", "grp", "row"];
 
 // Everything the renderer shows. Components subscribe to fine-grained keys so only touched widgets re-render.
@@ -33,6 +37,7 @@ export class Store {
   conn: ConnState = "connecting";
   authLeft: number | undefined;
   lockUntil = 0;
+  busy = false;
   sysInfo: SysInfo | null = null;
   wifi: WifiStatus | null = null;
   wifiScan: WifiAp[] | null = null;
@@ -49,8 +54,10 @@ export class Store {
     let s = this.subs.get(key);
     if (!s) this.subs.set(key, (s = new Set()));
     s.add(fn);
-    return () => { s!.delete(fn); };
+    return () => { s!.delete(fn); if (!s!.size) this.subs.delete(key); };
   }
+
+  listenerCount() { let n = 0; for (const s of this.subs.values()) n += s.size; return n; }
 
   version(key: string) { return this.versions.get(key) ?? 0; }
 
@@ -78,6 +85,7 @@ export class Store {
   // ---- session ---------------------------------------------------------
   onHello(m: HelloMsg) {
     this.device = m;
+    this.busy = false;
     this.helloAt = this.now();
     if (m.lock) this.lockUntil = this.helloAt + m.lock * 1000;
     this.emit("device");
@@ -112,6 +120,8 @@ export class Store {
       this.order.push(w.id);
     }
     this.layoutCache = null;
+    for (const id of this.charts.keys()) if (!this.widgets.has(id)) this.charts.delete(id);
+    for (const id of this.logs.keys()) if (!this.widgets.has(id)) this.logs.delete(id);
     const pages = this.pages();
     if (!pages.some((p) => p.id === this.page)) this.page = pages[0]?.id ?? "";
     this.emit("layout");
@@ -199,7 +209,12 @@ export class Store {
     }
     const win = (this.widgets.get(m.id)?.win ?? 300) * 1000;
     const latest = Math.max(...[...chart.values()].map((s) => s[s.length - 1]?.[0] ?? 0));
-    for (const s of chart.values()) { let cut = 0; while (cut < s.length && s[cut][0] < latest - win) cut++; if (cut) s.splice(0, cut); }
+    for (const s of chart.values()) {
+      let cut = 0;
+      while (cut < s.length && s[cut][0] < latest - win) cut++;
+      if (s.length - cut > CHART_MAX_POINTS) cut = s.length - CHART_MAX_POINTS;
+      if (cut) s.splice(0, cut);
+    }
     this.emit("c:" + m.id);
   }
 
@@ -211,7 +226,7 @@ export class Store {
     if (!lines) this.logs.set(m.id, (lines = []));
     if (m.ts !== undefined && lines.some((l) => l.ts === line.ts && l.msg === line.msg)) return;
     lines.push(line);
-    const cap = this.widgets.get(m.id)?.cap ?? 200;
+    const cap = Math.min(LOG_MAX_LINES, this.widgets.get(m.id)?.cap ?? 200);
     if (lines.length > cap) lines.splice(0, lines.length - cap);
     this.emit("l:" + m.id);
   }
@@ -221,6 +236,7 @@ export class Store {
     if (m.close) return this.closeDialog(m.id);
     if (m.kind !== "confirm" && m.kind !== "prompt") return;
     if (this.dialogs.some((d) => d.id === m.id)) return;
+    if (this.dialogs.length >= DIALOG_CAP) this.dialogs.shift();
     this.dialogs.push({ id: m.id, kind: m.kind, title: m.title, msg: m.msg ?? "", def: m.def, timeout: m.timeout ?? 60, at: this.now() });
     this.emit("dlg");
   }
@@ -242,6 +258,7 @@ export class Store {
   // ---- sys -------------------------------------------------------------
   onErr(m: ErrMsg) {
     this.lastErr = m;
+    if (m.code === 9 && m.ref === "hello") this.busy = true;
     if (m.ref?.startsWith("ota")) this.ota = { pct: this.ota?.pct ?? 0, done: true, ok: false, msg: m.msg };
     this.addToast("err", `${m.msg ?? "error"}${m.ref ? ` (${m.ref})` : ""} [${m.code}]`);
     this.emit("err");

@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>espFace</title>
+<meta name="description" content="espFace: an ESP32 describes its control UI in a few lines of Arduino code; apps and this web renderer draw it.">
+<script>
+  // Old links: /?host=x used to open the renderer directly.
+  if (new URLSearchParams(location.search).get("host")) location.replace("/connect/" + location.search);
+</script>
+<style>
+  :root { color-scheme: light dark; --fg: #1d1d1f; --bg: #f5f5f7; --card: #fff; --accent: #2f7df6; --muted: #6e6e73; --border: #e3e3e6; }
+  @media (prefers-color-scheme: dark) { :root { --fg: #f2f2f2; --bg: #111214; --card: #1c1d21; --muted: #9a9aa0; --border: #2c2d32; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--fg); }
+  main { max-width: 760px; margin: 0 auto; padding: 48px 16px 64px; }
+  h1 { font-size: 2.2rem; margin: 0 0 4px; letter-spacing: -0.02em; }
+  h1 small { font-size: 1rem; color: var(--muted); font-weight: 400; margin-left: 10px; }
+  p.lead { color: var(--muted); margin: 0 0 32px; font-size: 1.1rem; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+  a.card { display: block; background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 18px; color: inherit; text-decoration: none; }
+  a.card:hover { border-color: var(--accent); }
+  a.card b { display: block; font-size: 1.05rem; margin-bottom: 4px; }
+  a.card span { color: var(--muted); font-size: .95rem; }
+  form { margin-top: 32px; background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 18px; }
+  form label { display: block; font-weight: 600; margin-bottom: 8px; }
+  .row { display: flex; gap: 8px; }
+  input { flex: 1; font: inherit; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); color: inherit; min-width: 0; }
+  button { font: inherit; padding: 10px 16px; border: 0; border-radius: 10px; background: var(--accent); color: #fff; cursor: pointer; }
+  .hint { color: var(--muted); font-size: .9rem; margin: 8px 0 0; }
+  footer { margin-top: 48px; color: var(--muted); font-size: .9rem; }
+  footer a { color: inherit; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .92em; }
+</style>
+</head>
+<body>
+<main>
+  <h1>espFace <small>renderer host</small></h1>
+  <p class="lead">An ESP32 describes its control UI in a few lines of Arduino code; the apps and this web renderer draw it.</p>
+  <div class="grid">
+    <a class="card" href="/docs/"><b>Documentation</b><span>Getting started, concepts, API reference, widget catalogue, protocol.</span></a>
+    <a class="card" href="/flash/"><b>Flash a board</b><span>Write a firmware image over USB from this browser (Chromium, WebSerial).</span></a>
+    <a class="card" href="/docs/guide/web.html"><b>Web renderer</b><span>How devices load <code>/r/1/app.js</code> and how to self-host it.</span></a>
+    <a class="card" href="/docs/guide/app.html"><b>Mobile app</b><span>Android and iOS app: discovery, pairing, BLE, USB and Bluetooth transports.</span></a>
+  </div>
+  <form action="/connect/" method="get">
+    <label for="host">Open a device on this network</label>
+    <div class="row"><input id="host" name="host" placeholder="192.168.4.1 or boiler.local" required><button type="submit">Connect</button></div>
+    <p class="hint">Devices normally open the renderer themselves from their own http page; use this only for a device without the bootstrap page, e.g. the fake device on <code>localhost:8080</code>.</p>
+  </form>
+  <footer>Renderer bundle: <a href="/r/1/app.js"><code>/r/1/app.js</code></a>, pinned per protocol major. Source: <a href="https://github.com/manzari/espFace">manzari/espFace</a> (MIT).</footer>
+</main>
+</body>
+</html>

@@ -5,7 +5,7 @@ import { createHash } from "node:crypto";
 const device = process.env.E2E_DEVICE ?? "localhost:8080";
 
 test("pair, read, control, answer a dialog, switch page", async ({ page }) => {
-  await page.goto(`/?host=${device}`);
+  await page.goto(`/connect/?host=${device}`);
 
   // pairing with a wrong PIN first, then the right one
   const pin = page.locator("form[data-pin]");
@@ -53,7 +53,7 @@ test("pair, read, control, answer a dialog, switch page", async ({ page }) => {
 });
 
 test("system page shows device info and caps", async ({ page }) => {
-  await page.goto(`/?host=${device}`);
+  await page.goto(`/connect/?host=${device}`);
   const pin = page.locator("form[data-pin]");
   await pin.locator("input").fill("1234");
   await pin.locator("button[type=submit]").click();
@@ -72,7 +72,7 @@ test("system page shows device info and caps", async ({ page }) => {
 });
 
 async function pairAndOpenSystem(page: import("@playwright/test").Page) {
-  await page.goto(`/?host=${device}`);
+  await page.goto(`/connect/?host=${device}`);
   const pin = page.locator("form[data-pin]");
   await pin.locator("input").fill("1234");
   await pin.locator("button[type=submit]").click();
