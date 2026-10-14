@@ -1,0 +1,86 @@
+# Tag-triggered release (docs/RELEASE.md). Builds every release asset and attaches it to a Forgejo release.
+# Publishing to Library Manager, PlatformIO, the renderer host and the stores stays manual (docs/RELEASE.md).
+name: release
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  guard:
+    runs-on: docker
+    container: alpine:3.20
+    steps:
+      - uses: actions/checkout@v4
+      - run: sh tools/release/check-versions.sh "${{ github.ref_name }}"
+
+  library:
+    needs: guard
+    runs-on: docker
+    container: python:3.12-slim
+    steps:
+      - uses: actions/checkout@v4
+      - run: apt-get update && apt-get install -y --no-install-recommends git zip wget ca-certificates && pip install platformio==6.1.16
+      - run: sh tools/release/split-library.sh zip
+      - run: cd firmware && pio pkg pack -o ../build/release/
+      - run: |
+          wget -qO- https://github.com/arduino/arduino-lint/releases/download/1.3.0/arduino-lint_1.3.0_Linux_64bit.tar.gz | tar xz -C /usr/local/bin arduino-lint
+          arduino-lint --library-manager submit --compliance strict build/release/espFace
+      - uses: actions/upload-artifact@v4
+        with:
+          name: library
+          path: |
+            build/release/espFace-*.zip
+            build/release/espFace-*.tar.gz
+
+  footprint:
+    needs: guard
+    runs-on: docker
+    container: python:3.12-slim
+    steps:
+      - uses: actions/checkout@v4
+      - run: apt-get update && apt-get install -y --no-install-recommends git && pip install platformio==6.1.16
+      - run: cd firmware && ALLOW_FAIL=esp32-c6-devkitc-1 FOOTPRINT_OUT=footprint-${{ github.ref_name }}.md sh tools/ci-build.sh
+      - run: cd firmware && sh tools/footprint-check.sh footprint-${{ github.ref_name }}.md footprint.budget
+      - uses: actions/upload-artifact@v4
+        with: { name: footprint, path: "firmware/footprint-${{ github.ref_name }}.md" }
+
+  web-docs:
+    needs: guard
+    runs-on: docker
+    container: node:22-alpine
+    steps:
+      - uses: actions/checkout@v4
+      - run: cd protocol && npm ci && npm test
+      - run: cd web && npm ci && npm run build && npm test && npm run freeze
+      - run: cd docs/site && npm ci && npm run build
+      - run: |
+          V=${{ github.ref_name }}; mkdir -p out
+          tar -czf out/espface-renderer-$V.tar.gz -C web/dist .
+          tar -czf out/espface-docs-$V.tar.gz -C docs/site/.vitepress/dist .
+      - uses: actions/upload-artifact@v4
+        with: { name: web-docs, path: out/ }
+
+  publish:
+    needs: [library, footprint, web-docs]
+    runs-on: docker
+    container: node:22-alpine
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { path: assets, merge-multiple: true }
+      - id: notes
+        run: |
+          cd assets && sha256sum * > SHA256SUMS && cat SHA256SUMS && cd ..
+          sh tools/release/notes.sh "${{ github.ref_name }}" > notes.md
+          { echo "body<<NOTES_EOF"; cat notes.md; echo "NOTES_EOF"; } >> "$GITHUB_OUTPUT"
+      - uses: https://code.forgejo.org/actions/forgejo-release@v2
+        with:
+          direction: upload
+          url: ${{ github.server_url }}
+          repo: ${{ github.repository }}
+          token: ${{ secrets.RELEASE_TOKEN }}
+          tag: ${{ github.ref_name }}
+          title: espFace ${{ github.ref_name }}
+          release-dir: assets
+          release-notes: ${{ steps.notes.outputs.body }}
+          override: false

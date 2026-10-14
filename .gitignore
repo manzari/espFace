@@ -14,3 +14,4 @@ docs/site/reference/propref.md
 docs/site/guide/icons-list.md
 web/dist/
 web/test-results/
+/build/
