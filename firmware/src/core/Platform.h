@@ -20,6 +20,9 @@ namespace espface { using Str = std::string; }
 #ifndef ESPFACE_FLUSH_MS
 #define ESPFACE_FLUSH_MS 100
 #endif
+#ifndef ESPFACE_PERSIST_MS
+#define ESPFACE_PERSIST_MS 2000         // persisted inputs are written to NVS at most once per this interval
+#endif
 #ifndef ESPFACE_FRAME_SIZE
 #define ESPFACE_FRAME_SIZE 1024
 #endif

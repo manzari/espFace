@@ -66,6 +66,7 @@ class Core : public UiHost {
   void onDisconnect(std::function<void(const ClientInfo&)> fn) { onDisconnect_ = fn; }
   void onReboot(std::function<void(RebootReason)> fn) { onReboot_ = fn; }
   void requestReboot(RebootReason r, uint32_t delayMs = 500);
+  void flushPersist() { for (auto u : uis_) u->flushPersist(); }
   bool rebootPending() const { return rebootPending_; }
   uint32_t time() const;                      // unix seconds or 0
   int16_t tz() const { return tz_; }

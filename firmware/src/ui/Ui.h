@@ -236,6 +236,7 @@ class Ui {
   bool applyEvent(uint16_t idx, int v);
   bool answerDialog(const char* id, bool ok, const char* text);
   void loop(uint32_t now);
+  void flushPersist();                                  // writes pending persisted values now
   void markAllDirty(uint8_t slotBit);
   struct Dialog { Str id, kind, msg, def, title; DialogFn cb; uint32_t deadline; };
   const std::vector<Dialog>& dialogs() const { return dialogs_; }     // open dialogs, re-sent to late joiners
@@ -250,6 +251,7 @@ class Ui {
   bool validate(const Widget& w, Value& v) const;
   void persistKey(const Widget& w, char out[16]) const;
   Store* store();
+  void persistLater(Widget& w);
   void dialogOpen(const char* id, const char* kind, const char* msg, const char* def, const char* title, DialogFn cb, uint16_t timeoutS);
 
 
@@ -257,6 +259,8 @@ class Ui {
   UiHost* host_ = nullptr;
   Store* base_ = nullptr;
   Store* store_ = nullptr;
+  bool persistPending_ = false;
+  uint32_t persistAt_ = 0;
   bool pinSet_ = false;
   Str pin_;
   uint32_t rev_ = 1;

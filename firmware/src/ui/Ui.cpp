@@ -237,6 +237,20 @@ Store* Ui::store() {
   return store_;
 }
 
+void Ui::persistLater(Widget& w) {
+  w.set(Widget::PersistDue, true);
+  if (!persistPending_) { persistPending_ = true; persistAt_ = nowMs() + ESPFACE_PERSIST_MS; }
+}
+
+void Ui::flushPersist() {
+  persistPending_ = false;
+  for (auto& w : w_) {
+    if (!w.has(Widget::PersistDue)) continue;
+    w.set(Widget::PersistDue, false);
+    if (store()) { char key[16]; persistKey(w, key); store_->putValue(key, w.val); }
+  }
+}
+
 bool Ui::validate(const Widget& w, Value& v) const {
   auto isInt = [](const Value& x) { return x.type == Value::Int || (x.type == Value::Float && x.f == floorf(x.f)); };
   auto num = [&](float& out) { if (!v.isNum()) return false; out = v.asFloat(); return true; };
@@ -300,7 +314,7 @@ bool Ui::set(const char* id, const Value& v) {
   for (auto& b : binds_) if (b.idx == i) { b.last = c; switch (b.kind) {
     case Binding::B: *(bool*)b.ptr = c.asBool(); break; case Binding::I: *(int*)b.ptr = (int)c.asInt(); break;
     case Binding::F: *(float*)b.ptr = c.asFloat(); break; case Binding::S: *(Str*)b.ptr = c.asStr(); break; } }
-  if (w.has(Widget::Persist) && store()) { char key[16]; persistKey(w, key); store_->putValue(key, c); }
+  if (w.has(Widget::Persist)) persistLater(w);
   if (host_) host_->uiValueChanged(*this, (uint16_t)i);
   return true;
 }
@@ -316,7 +330,7 @@ bool Ui::applySet(uint16_t idx, Value v, uint8_t fromSlotBit, int& errCode) {
   }
   bool changed = !v.equals(w.val);
   w.val = v; w.dirty = 0xFF;
-  if (changed && w.has(Widget::Persist) && store()) { char key[16]; persistKey(w, key); store_->putValue(key, v); }
+  if (changed && w.has(Widget::Persist)) persistLater(w);
   fire(idx, v);
   return true;
 }
@@ -442,6 +456,7 @@ void Ui::loop(uint32_t now) {
     }
     if (!cur.equals(b.last)) { b.last = cur; set(w_[b.idx].id.c_str(), cur); }
   }
+  if (persistPending_ && (int32_t)(now - persistAt_) >= 0) flushPersist();
   // dialog timeouts
   for (size_t i = 0; i < dialogs_.size();) {
     if ((int32_t)(now - dialogs_[i].deadline) >= 0) { Str id = dialogs_[i].id; answerDialog(id.c_str(), false, ""); }

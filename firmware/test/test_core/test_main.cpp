@@ -278,7 +278,9 @@ void test_persist_restores_value() {
   a.ui().slider("target", "T", 0, 100).persist().onChange([&](float v) { fired++; seen = v; });
   int s = a.onOpen(&tr); a.onMessage((uint8_t)s, "{\"t\":\"hello\",\"v\":1,\"client\":\"app\"}", 36);
   a.onMessage((uint8_t)s, "{\"t\":\"set\",\"id\":\"target\",\"v\":66}", 34);
-  Str raw; TEST_ASSERT_TRUE(nsGet(store, "main", "target", raw));
+  Str raw; TEST_ASSERT_FALSE(nsGet(store, "main", "target", raw));
+  a.ui().loop(nowMs() + ESPFACE_PERSIST_MS);
+  TEST_ASSERT_TRUE(nsGet(store, "main", "target", raw));
   TEST_ASSERT_EQUAL_STRING("f66", raw.c_str());
   TEST_ASSERT_FALSE(store.getStr("target", raw));
   TEST_ASSERT_EQUAL(1, fired);
@@ -305,6 +307,7 @@ void test_persist_namespaces() {
     Ui& setup = c.addUi("setup"); setup.slider("target", "T", 0, 100).persist();
     TEST_ASSERT_TRUE(c.ui().set("pin", "9999")); TEST_ASSERT_TRUE(c.ui().set("ssid", "evil"));
     TEST_ASSERT_TRUE(c.ui().set("target", 10)); TEST_ASSERT_TRUE(setup.set("target", 20));
+    c.flushPersist();
   }
   Str raw;
   TEST_ASSERT_TRUE(store.getStr("pin", raw)); TEST_ASSERT_EQUAL_STRING("1234", raw.c_str());
@@ -315,6 +318,23 @@ void test_persist_namespaces() {
   c.ui().slider("target", "T", 0, 100).persist(); setup.slider("target", "T", 0, 100).persist();
   TEST_ASSERT_EQUAL_FLOAT(10.f, c.ui().get("target")->asFloat());
   TEST_ASSERT_EQUAL_FLOAT(20.f, setup.get("target")->asFloat());
+}
+
+void test_persist_coalesced_and_flushed_on_reboot() {
+  MemStore store; Str raw;
+  MemTransport tr; Core c; c.setId("a1b2c3"); c.addTransport(&tr); c.begin("A", &store);
+  int reboots = 0; c.rebootFn = [&] { reboots++; };
+  c.ui().slider("target", "T", 0, 100).persist();
+  for (int v = 1; v <= 50; v++) c.ui().set("target", v);
+  c.loop();
+  TEST_ASSERT_FALSE(nsGet(store, "main", "target", raw));
+  c.ui().loop(nowMs() + ESPFACE_PERSIST_MS);
+  TEST_ASSERT_TRUE(nsGet(store, "main", "target", raw)); TEST_ASSERT_EQUAL_STRING("f50", raw.c_str());
+  c.ui().set("target", 7);
+  TEST_ASSERT_TRUE(nsGet(store, "main", "target", raw)); TEST_ASSERT_EQUAL_STRING("f50", raw.c_str());
+  c.requestReboot(RebootReason::Client, 0); c.loop();
+  TEST_ASSERT_EQUAL(1, reboots);
+  TEST_ASSERT_TRUE(nsGet(store, "main", "target", raw)); TEST_ASSERT_EQUAL_STRING("f7", raw.c_str());
 }
 
 void test_page_filter() {
@@ -1419,7 +1439,7 @@ void test_fuzz_vectors_mutations_garbage_no_crash_no_leak() {
       Str f; int parts = 1 + rnd() % 12; for (int i = 0; i < parts; i++) f += frag[rnd() % (sizeof frag / sizeof *frag)];
       r.feed(f); msgs++;
     }
-    r.flushAll(); r.core.loop();
+    r.flushAll(); r.core.loop(); r.core.flushPersist();
     if (!r.alive()) TEST_FAIL_MESSAGE("core stopped answering after fuzz round");
     r.prime();
     if (round == 12) baseline = heapNow();   // after the token ring (8) and the store are full
@@ -1510,6 +1530,7 @@ int main() {
   RUN_TEST(test_events_hold_and_click);
   RUN_TEST(test_persist_restores_value);
   RUN_TEST(test_persist_namespaces);
+  RUN_TEST(test_persist_coalesced_and_flushed_on_reboot);
   RUN_TEST(test_page_filter);
   RUN_TEST(test_dialogs_props_toast_log_chart);
   RUN_TEST(test_sys_info_time_reboot_and_errors);

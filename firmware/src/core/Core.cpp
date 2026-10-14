@@ -306,6 +306,7 @@ void Core::loop() {
   if (rebootPending_ && (int32_t)(now - rebootAt_) >= 0) {
     rebootPending_ = false;
     if (onReboot_) onReboot_(rebootReason_);
+    flushPersist();
     if (rebootFn) rebootFn();
   }
 }

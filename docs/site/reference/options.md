@@ -7,6 +7,7 @@ Define these as build flags (`-DNAME=value` in PlatformIO `build_flags`) or befo
 | `ESPFACE_MAX_CLIENTS` | 4 | Maximum concurrent sessions across all transports; the next client gets err 9 |
 | `ESPFACE_LOG_HISTORY` | 0 | Number of log lines kept on the device and replayed to a client that connects later |
 | `ESPFACE_RENDERER_HOST` | `https://espface.manzari.dev` | Host the bootstrap page loads the renderer from. Use a quoted string: `-DESPFACE_RENDERER_HOST=\"https://your.host\"` |
+| `ESPFACE_PERSIST_MS` | 2000 | Persisted inputs are written to NVS at most once per this interval (ms); a slider drag costs one or two flash writes, not one per step |
 | `ESPFACE_FRAME_SIZE` | 1024 | Size of the frames the `ui` message is streamed in |
 | `ESPFACE_MAX_MSG` | 2048 | Largest accepted client-to-device message and stream line, in bytes |
 | `ESPFACE_NO_TLS` | off | Drop TLS: OTA and ntfy are http-only, https URLs fail with a log line |

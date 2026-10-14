@@ -98,6 +98,8 @@ class EspFace {
   void onDisconnect(std::function<void(const ClientInfo&)> fn) { core_.onDisconnect(fn); }
   void onReboot(std::function<void(RebootReason)> fn) { core_.onReboot(fn); }
   void reboot(uint32_t delayMs = 500) { core_.requestReboot(RebootReason::Sketch, delayMs); }
+  // Writes pending persisted values now, e.g. before deep sleep or your own ESP.restart().
+  void flushPersist() { core_.flushPersist(); }
   const char* id() const { return core_.id(); }
   const char* resetReason() const { return rr_; }
 

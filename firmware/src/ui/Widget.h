@@ -32,7 +32,7 @@ struct Prop {
 };
 
 struct Widget {
-  enum Flag : uint8_t { HasValue = 1, Persist = 2, Ro = 4, Dis = 8, Hidden = 16, Restored = 32, Output = 64 };
+  enum Flag : uint8_t { HasValue = 1, Persist = 2, Ro = 4, Dis = 8, Hidden = 16, Restored = 32, Output = 64, PersistDue = 128 };
 
   Str id;
   WType ty = WType::Label;
