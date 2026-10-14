@@ -1,6 +1,6 @@
 # Renderer hosting
 
-Static nginx image serving `web/dist`: the renderer bundle at `/r/1/app.js` + `/r/1/app.css` (immutable cache, CORS `*`), a landing page at `/` that connects to a device given with `?host=`, and `/flash/`, a WebSerial flash page (esptool-js from jsdelivr, Chromium only; Web Serial needs the https origin Traefik provides).
+Static nginx image serving `web/dist` plus the docs site: the renderer bundle at `/r/1/app.js` + `/r/1/app.css` (immutable cache, CORS `*`), a landing page at `/` (links to docs, flash page and a connect form), `/connect/?host=` to open a device, `/flash/`, a WebSerial flash page (esptool-js from jsdelivr, Chromium only; Web Serial needs the https origin Traefik provides), and `/docs/`, the VitePress site from `docs/site/` (built in its own stage of the Dockerfile, so the API reference is regenerated from the firmware headers on every deploy).
 
 Devices serve a bootstrap page that loads `https://<renderer-host>/r/1/app.js` (`ESPFACE_RENDERER_HOST` in `firmware/src/web/bootstrap.h`, default `https://espface.manzari.dev`). Breaking renderer changes go to `/r/2/`; `/r/1/` stays for old firmware.
 
@@ -9,7 +9,7 @@ Devices serve a bootstrap page that loads `https://<renderer-host>/r/1/app.js` (
 ```
 docker build -f server/renderer/Dockerfile -t espface-renderer .      # from the repository root
 docker run --rm -p 8081:80 espface-renderer
-# http://localhost:8081/?host=localhost:8080   (with the fake device running)
+# http://localhost:8081/connect/?host=localhost:18080   (with the fake device running), http://localhost:8081/docs/
 ```
 
 ## Coolify

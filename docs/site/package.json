@@ -1,0 +1,16 @@
+{
+  "name": "@espface/docs",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "espFace documentation site (VitePress), served under /docs/ by server/renderer",
+  "scripts": {
+    "gen": "node scripts/gen-api.mjs && node scripts/prepare.mjs",
+    "dev": "npm run gen && vitepress dev --host 0.0.0.0",
+    "build": "npm run gen && vitepress build",
+    "preview": "vitepress preview --host 0.0.0.0"
+  },
+  "devDependencies": {
+    "vitepress": "1.6.4"
+  }
+}
