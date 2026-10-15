@@ -20,7 +20,7 @@ ui.spacer("sp", 1, 16);
 
 - Layout is pages, then group cards, then rows, then widgets, always in declaration order.
 - Widgets declared after `page()` belong to that page. `.page(id)` overrides this explicitly.
-- `group(id, lbl)` creates a card; widgets join it with `.group(id)`. Groups can start folded with `.fold()`.
+- `group(id, lbl)` creates a card; widgets join it with `.group(id)`. `.fold()` makes a group collapsible; it starts open.
 - `row(id)` places widgets side by side; `.row(id).size(w)` sets the relative width (default 1). `.size(w, h)` also fixes the height in pixels.
 - A `group`, `page` or `row` must be declared before the widgets that reference it.
 - Page, fold and scroll state live in the client, not on the device.

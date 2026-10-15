@@ -4,6 +4,7 @@ import type { Widget } from "../proto/types";
 import { useSub } from "../hooks";
 import { store } from "../state";
 import { Frame, decimals } from "./common";
+import { hms } from "./Log";
 
 const PALETTE = ["#2f7df6", "#ff8800", "#1f9d55", "#d9342b", "#8e44ad", "#16a085", "#c77700", "#7f8c8d"];
 
@@ -45,7 +46,8 @@ export function Chart({ w }: { w: Widget }) {
         cursor: { show: false },
         scales: { x: { time: true } },
         axes: [
-          { stroke: muted, grid: { stroke: border, width: 1 }, ticks: { stroke: border }, font: "11px system-ui", space: 60 },
+          { stroke: muted, grid: { stroke: border, width: 1 }, ticks: { stroke: border }, font: "11px system-ui", space: 60,
+            values: (_u, v, _a, _s, incr) => v.map((x) => (incr >= 60 ? hms(x * 1000).slice(0, 5) : hms(x * 1000))) },
           { stroke: muted, grid: { stroke: border, width: 1 }, ticks: { stroke: border }, font: "11px system-ui", size: 44, values: (_u, v) => v.map((x) => String(x) + (w.unit ?? "")) },
         ],
         series: [

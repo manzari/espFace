@@ -51,7 +51,7 @@ const SCENARIOS: Scenario[] = [
       { t: "pts", id: "tchart", s: "temp", p: chartPoints((i) => 48 + 14 * (1 - Math.exp(-i / 35)) + 0.8 * Math.sin(i / 4)) },
       { t: "pts", id: "tchart", s: "target", p: chartPoints((i) => (i < 30 ? 55 : 60)) },
     ],
-    ready: async (p) => { await p.locator('.w[data-id="tchart"] canvas').first().waitFor(); },
+    ready: (p) => drawn(p, "tchart", ["#ff8800", "#0088ff"]),
   },
   {
     ty: "log",
@@ -134,53 +134,69 @@ async function imgLoaded(p: Page, id: string) {
   await p.waitForFunction((i) => { const im = document.querySelector<HTMLImageElement>(`.w[data-id="${i}"] img`); return !!im && im.complete && im.naturalWidth > 0; }, id);
 }
 
+// Waits until every series color is on the chart canvas, so a screenshot never misses a series still being applied.
+async function drawn(p: Page, id: string, colors: string[]) {
+  await p.waitForFunction(([i, cs]) => {
+    const c = document.querySelector<HTMLCanvasElement>(`.w[data-id="${i}"] canvas`);
+    const d = c?.getContext("2d")?.getImageData(0, 0, c.width, c.height).data;
+    if (!d) return false;
+    return cs.every((h) => {
+      const [r, g, b] = [1, 3, 5].map((k) => parseInt(h.slice(k, k + 2), 16));
+      for (let j = 0; j < d.length; j += 4) if (Math.abs(d[j] - r) + Math.abs(d[j + 1] - g) + Math.abs(d[j + 2] - b) < 24) return true;
+      return false;
+    });
+  }, [id, colors] as const);
+}
+
 async function shoot(browser: Browser, s: Scenario, scheme: "light" | "dark") {
   const ctx = await browser.newContext({
     viewport: { width: 400, height: s.height ?? 900 }, deviceScaleFactor: 2, colorScheme: scheme,
     timezoneId: "Europe/Berlin", locale: "en-GB", hasTouch: true,
   });
-  const page = await ctx.newPage();
-  if (!s.liveClock) await page.clock.setFixedTime(NOW);
-  await page.route("https://example.com/diagram.png", (r) => r.fulfill({ contentType: "image/svg+xml", body: DIAGRAM }));
-  await page.route("http://192.168.1.60:81/stream*", (r) => r.fulfill({ contentType: "image/svg+xml", body: CAMERA }));
-  await page.routeWebSocket(/\/ws$/, (ws) => {
-    ws.onMessage((raw) => {
-      const m = JSON.parse(String(raw));
-      if (m.t !== "hello") return;
-      ws.send(JSON.stringify({ t: "hello", v: 1, name: "Boiler", id: "a1b2c3", fw: "1.0.0", auth: "none", ok: true, caps: ["chart"] }));
-      ws.send(JSON.stringify({ t: "ui", rev: 1, w: s.w }));
-      ws.send(JSON.stringify({ t: "upd", v: s.v ?? {} }));
-      for (const x of s.push ?? []) ws.send(JSON.stringify(x));
+  try {
+    const page = await ctx.newPage();
+    if (!s.liveClock) await page.clock.setFixedTime(NOW);
+    await page.route("https://example.com/diagram.png", (r) => r.fulfill({ contentType: "image/svg+xml", body: DIAGRAM }));
+    await page.route("http://192.168.1.60:81/stream*", (r) => r.fulfill({ contentType: "image/svg+xml", body: CAMERA }));
+    await page.routeWebSocket(/\/ws$/, (ws) => {
+      ws.onMessage((raw) => {
+        const m = JSON.parse(String(raw));
+        if (m.t !== "hello") return;
+        ws.send(JSON.stringify({ t: "hello", v: 1, name: "Boiler", id: "a1b2c3", fw: "1.0.0", auth: "none", ok: true, caps: ["chart"] }));
+        ws.send(JSON.stringify({ t: "ui", rev: 1, w: s.w }));
+        ws.send(JSON.stringify({ t: "upd", v: s.v ?? {} }));
+        for (const x of s.push ?? []) ws.send(JSON.stringify(x));
+      });
     });
-  });
-  await page.goto("/connect/?host=shots.local");
-  await page.locator(`.w[data-id="${s.wait ?? s.w[s.w.length - 1].id}"]`).first().waitFor();
-  if (s.ready) await s.ready(page);
-  await page.evaluate(() => document.fonts.ready);
-  const file = `${OUT}/${s.ty}-${scheme}.png`;
-  if (s.page) {
-    await page.locator(".bottomnav button", { hasText: s.page }).click();
-    await page.waitForTimeout(200);
-    await page.screenshot({ path: file, animations: "disabled" });
-  } else {
-    const card = page.locator(".card").first();
-    const box = (await card.boundingBox())!;
-    const pad = 10;
-    await page.mouse.move(0, 0);
-    await page.screenshot({
-      path: file, animations: "disabled",
-      clip: { x: Math.max(0, box.x - pad), y: Math.max(0, box.y - pad), width: Math.min(400, box.width + 2 * pad), height: box.height + 2 * pad },
-    });
+    await page.goto("/connect/?host=shots.local");
+    await page.locator(`.w[data-id="${s.wait ?? s.w[s.w.length - 1].id}"]`).first().waitFor();
+    if (s.ready) await s.ready(page);
+    await page.evaluate(() => document.fonts.ready);
+    const file = `${OUT}/${s.ty}-${scheme}.png`;
+    if (s.page) {
+      await page.locator(".bottomnav button", { hasText: s.page }).click();
+      await page.locator(`.w[data-id="${s.w[s.w.length - 1].id}"]`).waitFor();
+      await page.screenshot({ path: file, animations: "disabled" });
+    } else {
+      const card = page.locator(".card").first();
+      const box = (await card.boundingBox())!;
+      const pad = 10;
+      await page.mouse.move(0, 0);
+      await page.screenshot({
+        path: file, animations: "disabled",
+        clip: { x: Math.max(0, box.x - pad), y: Math.max(0, box.y - pad), width: Math.min(400, box.width + 2 * pad), height: box.height + 2 * pad },
+      });
+    }
+  } finally {
+    await ctx.close();
   }
-  await ctx.close();
 }
+
+// Native time/date inputs format by the browser process locale; the context locale does not reach them.
+test.use({ launchOptions: { env: { ...process.env, LC_ALL: "en_GB.UTF-8" } } });
 
 test.describe("widget screenshots", () => {
   test.skip(process.env.ESPFACE_SHOTS !== "1", "set ESPFACE_SHOTS=1 (scripts/widget-shots.sh)");
   test.beforeAll(() => { mkdirSync(OUT, { recursive: true }); });
-  for (const s of SCENARIOS) {
-    test(s.ty, async ({ browser }) => {
-      for (const scheme of ["light", "dark"] as const) await shoot(browser, s, scheme);
-    });
-  }
+  for (const s of SCENARIOS) for (const scheme of ["light", "dark"] as const) test(`${s.ty} ${scheme}`, ({ browser }) => shoot(browser, s, scheme));
 });
