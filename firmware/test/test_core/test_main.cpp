@@ -263,7 +263,7 @@ void test_events_hold_and_click() {
 }
 
 static bool nsGet(MemStore& st, const char* ui, const char* key, Str& out) {
-  char ns[16]; Ui::persistNs(ui, ns);
+  char ns[16]; persistNs(ui, ns);
   Store* s = st.open(ns); bool ok = s->getStr(key, out); delete s; return ok;
 }
 
@@ -296,8 +296,8 @@ void test_persist_restores_value() {
 
 void test_persist_namespaces() {
   char a[16], b[16], m[16];
-  Ui::persistNs("main", m); TEST_ASSERT_EQUAL_STRING("efv_main", m);
-  Ui::persistNs("provisioning_a", a); Ui::persistNs("provisioning_b", b);
+  persistNs("main", m); TEST_ASSERT_EQUAL_STRING("efv_main", m);
+  persistNs("provisioning_a", a); persistNs("provisioning_b", b);
   TEST_ASSERT_EQUAL(12, strlen(a)); TEST_ASSERT_EQUAL(0, strncmp(a, "efv_", 4)); TEST_ASSERT_NOT_EQUAL(0, strcmp(a, b));
   MemStore store;
   {

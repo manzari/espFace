@@ -225,7 +225,7 @@ Handler& Ui::handler(uint16_t idx) {
 
 void Ui::persistKey(const Widget& w, char out[16]) const { snprintf(out, 16, "%s", w.id.c_str()); }
 
-void Ui::persistNs(const char* name, char out[16]) {
+void persistNs(const char* name, char out[16]) {
   if (strlen(name) <= 11) { snprintf(out, 16, "efv_%s", name); return; }
   uint32_t h = 2166136261u;
   for (const char* p = name; *p; p++) h = (h ^ (uint8_t)*p) * 16777619u;

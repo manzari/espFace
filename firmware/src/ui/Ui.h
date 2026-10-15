@@ -148,6 +148,9 @@ class PropRef {
   bool vis_ = false, visSet_ = false;
 };
 
+// NVS namespace of a UI's persisted values: "efv_" + UI name, or "efv_" + FNV-1a hex for names over 11 characters.
+void persistNs(const char* uiName, char out[16]);
+
 class Ui {
  public:
   explicit Ui(const char* name = "main") : name_(name) {}
@@ -156,8 +159,6 @@ class Ui {
   Ui& operator=(const Ui&) = delete;
   void attach(UiHost* host, Store* store) { host_ = host; base_ = store; delete store_; store_ = nullptr; }
   const char* name() const { return name_; }
-  // NVS namespace of persisted values: "efv_<name>", or "efv_<fnv1a hex>" for names over 11 characters
-  static void persistNs(const char* name, char out[16]);
 
   // per-UI PIN override: nullptr = use the global PIN, "" = no PIN for this UI
   Ui& pin(const char* p) { pinSet_ = true; pin_ = p ? p : ""; return *this; }
