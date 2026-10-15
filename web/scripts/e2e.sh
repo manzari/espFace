@@ -2,7 +2,7 @@
 # Playwright tests in Docker: fake devices (plain + hardening knobs) + nginx renderer (built from source) + Playwright on one network.
 set -e
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-PW_IMAGE="mcr.microsoft.com/playwright:v1.49.1-noble"
+PW_IMAGE="mcr.microsoft.com/playwright:v$(sed -n 's/.*"@playwright\/test": "[~^]*\([^"]*\)".*/\1/p' "$ROOT/web/package.json")-noble"   # browsers match the test runner
 NET=espface-e2e
 NAMES="fake drop slow huge busy flaky lock web"
 cleanup() { for n in $NAMES; do docker rm -f espface-e2e-$n >/dev/null 2>&1 || true; done; docker network rm $NET >/dev/null 2>&1 || true; }

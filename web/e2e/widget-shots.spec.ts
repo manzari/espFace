@@ -2,7 +2,7 @@ import { test, type Browser, type Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-// Docs screenshots per widget type against a mocked device (scripts/widget-shots.sh); scenarios mirror docs/site/guide/widgets.md.
+// Docs screenshots per widget type against a mocked device (scripts/widget-shots.sh); scenarios mirror the widgets.md snippets, not the fake device demo UI.
 const OUT = process.env.ESPFACE_SHOTS_OUT || fileURLToPath(new URL("../../docs/site/public/widgets", import.meta.url));
 const NOW = Date.parse("2026-10-14T14:32:05+02:00");
 

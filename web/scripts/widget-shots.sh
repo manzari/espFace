@@ -2,7 +2,7 @@
 # Renders the widget screenshots of the docs (docs/site/public/widgets) with Playwright against the renderer image.
 set -e
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-PW_IMAGE="mcr.microsoft.com/playwright:v1.49.1-noble"
+PW_IMAGE="mcr.microsoft.com/playwright:v$(sed -n 's/.*"@playwright\/test": "[~^]*\([^"]*\)".*/\1/p' "$ROOT/web/package.json")-noble"   # browsers match the test runner
 NET=espface-shots
 cleanup() { docker rm -f espface-shots-web >/dev/null 2>&1 || true; docker network rm $NET >/dev/null 2>&1 || true; }
 cleanup
