@@ -70,5 +70,5 @@ export default defineConfig({
     search: { provider: "local" },
     footer: { message: "MIT licensed. Firmware, web renderer and apps.", copyright: "espFace" },
   },
-  markdown: { lineNumbers: false },
+  markdown: { lineNumbers: false, image: { lazyLoading: true } },
 });

@@ -19,9 +19,12 @@ COPY web/src/icons.json /w/web/src/icons.json
 COPY docs/site .
 RUN npm run build
 
-FROM nginx:1.27-alpine
+# Renderer only, without the docs build (web/scripts/widget-shots.sh renders the docs screenshots against it).
+FROM nginx:1.27-alpine AS web
 COPY server/renderer/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /w/web/dist /usr/share/nginx/html
-COPY --from=docs /w/docs/site/.vitepress/dist /usr/share/nginx/html/docs
 EXPOSE 80
 HEALTHCHECK --interval=10s --timeout=3s --retries=3 CMD wget -qO- http://127.0.0.1/healthz || exit 1
+
+FROM web
+COPY --from=docs /w/docs/site/.vitepress/dist /usr/share/nginx/html/docs

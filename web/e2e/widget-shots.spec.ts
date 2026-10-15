@@ -1,8 +1,9 @@
 import { test, type Browser, type Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 // Docs screenshots per widget type against a mocked device (scripts/widget-shots.sh); scenarios mirror docs/site/guide/widgets.md.
-const OUT = process.env.ESPFACE_SHOTS_OUT ?? "../docs/site/public/widgets";
+const OUT = process.env.ESPFACE_SHOTS_OUT || fileURLToPath(new URL("../../docs/site/public/widgets", import.meta.url));
 const NOW = Date.parse("2026-10-14T14:32:05+02:00");
 
 type W = Record<string, unknown> & { id: string; ty: string };
@@ -16,6 +17,7 @@ type Scenario = {
   wait?: string;
   liveClock?: boolean;            // Leaflet's tile fade needs a running clock
   height?: number;
+  jpeg?: boolean;                 // photo-like content: a JPEG is a fraction of the PNG
 };
 
 const svg = (body: string, w: number, h: number) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}">${body}</svg>`;
@@ -74,6 +76,7 @@ const SCENARIOS: Scenario[] = [
     w: [{ id: "pos", ty: "map", lbl: "Location", zoom: 14 }],
     v: { pos: [[52.52, 13.405, "Boiler"]] },
     liveClock: true,
+    jpeg: true,
     ready: async (p) => {
       await p.locator(".leaflet-marker-icon").waitFor({ timeout: 30000 });
       await p.waitForFunction(() => { const t = document.querySelectorAll(".leaflet-tile"); return t.length > 0 && [...t].every((x) => x.classList.contains("leaflet-tile-loaded")); }, null, { timeout: 30000 });
@@ -162,7 +165,7 @@ async function shoot(browser: Browser, s: Scenario, scheme: "light" | "dark") {
       ws.onMessage((raw) => {
         const m = JSON.parse(String(raw));
         if (m.t !== "hello") return;
-        ws.send(JSON.stringify({ t: "hello", v: 1, name: "Boiler", id: "a1b2c3", fw: "1.0.0", auth: "none", ok: true, caps: ["chart"] }));
+        ws.send(JSON.stringify({ t: "hello", v: 1, name: "Boiler", id: "a1b2c3", fw: "1.0.0", auth: "none", ok: true, up: 3600000, caps: ["chart"] }));
         ws.send(JSON.stringify({ t: "ui", rev: 1, w: s.w }));
         ws.send(JSON.stringify({ t: "upd", v: s.v ?? {} }));
         for (const x of s.push ?? []) ws.send(JSON.stringify(x));
@@ -172,18 +175,18 @@ async function shoot(browser: Browser, s: Scenario, scheme: "light" | "dark") {
     await page.locator(`.w[data-id="${s.wait ?? s.w[s.w.length - 1].id}"]`).first().waitFor();
     if (s.ready) await s.ready(page);
     await page.evaluate(() => document.fonts.ready);
-    const file = `${OUT}/${s.ty}-${scheme}.png`;
+    const shot = { path: `${OUT}/${s.ty}-${scheme}.${s.jpeg ? "jpg" : "png"}`, animations: "disabled" as const, ...(s.jpeg ? { quality: 85 } : {}) };
     if (s.page) {
       await page.locator(".bottomnav button", { hasText: s.page }).click();
       await page.locator(`.w[data-id="${s.w[s.w.length - 1].id}"]`).waitFor();
-      await page.screenshot({ path: file, animations: "disabled" });
+      await page.screenshot(shot);
     } else {
       const card = page.locator(".card").first();
       const box = (await card.boundingBox())!;
       const pad = 10;
       await page.mouse.move(0, 0);
       await page.screenshot({
-        path: file, animations: "disabled",
+        ...shot,
         clip: { x: Math.max(0, box.x - pad), y: Math.max(0, box.y - pad), width: Math.min(400, box.width + 2 * pad), height: box.height + 2 * pad },
       });
     }

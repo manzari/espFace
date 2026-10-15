@@ -215,8 +215,8 @@ Value: int unix seconds. The library pushes the device time every minute and the
 
 ### map
 
-![map widget](/widgets/map-light.png){.shot .shot-light}
-![map widget](/widgets/map-dark.png){.shot .shot-dark}
+![map widget](/widgets/map-light.jpg){.shot .shot-light}
+![map widget](/widgets/map-dark.jpg){.shot .shot-dark}
 
 ```cpp
 ui.map("pos", "Location", 14);
