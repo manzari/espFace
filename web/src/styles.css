@@ -83,7 +83,8 @@ textarea.field { resize: vertical; min-height: 60px; }
 .inline { display: flex; gap: 8px; align-items: center; }
 .inline > .field { flex: 1; min-width: 0; }
 .spin { width: 42px; min-width: 42px; height: 42px; padding: 0; }
-.switch { display: flex; align-items: center; gap: 10px; min-height: 42px; cursor: pointer; }
+.switch { display: flex; align-items: center; gap: 10px; min-height: 42px; cursor: pointer; min-width: 0; }
+.switch > span:not(.track) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .switch .track { width: 44px; height: 26px; border-radius: 13px; background: var(--muted); position: relative; transition: background .15s; flex: none; }
 .switch .track::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: transform .15s; }
 .switch.on .track { background: var(--sw, var(--accent)); }

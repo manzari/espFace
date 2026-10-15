@@ -37,14 +37,16 @@ export function Chart({ w }: { w: Widget }) {
     const el = host.current;
     const width = el.clientWidth || 300;
     if (!plot.current) {
+      const css = getComputedStyle(el);   // canvas strokes cannot use var(--x)
+      const muted = css.getPropertyValue("--muted").trim() || "#888", border = css.getPropertyValue("--border").trim() || "#ccc";
       const opts: uPlot.Options = {
         width, height: 180,
         legend: { show: false },
         cursor: { show: false },
         scales: { x: { time: true } },
         axes: [
-          { stroke: "var(--muted)", grid: { stroke: "var(--border)", width: 1 }, ticks: { stroke: "var(--border)" }, font: "11px system-ui", space: 60 },
-          { stroke: "var(--muted)", grid: { stroke: "var(--border)", width: 1 }, ticks: { stroke: "var(--border)" }, font: "11px system-ui", size: 44, values: (_u, v) => v.map((x) => String(x) + (w.unit ?? "")) },
+          { stroke: muted, grid: { stroke: border, width: 1 }, ticks: { stroke: border }, font: "11px system-ui", space: 60 },
+          { stroke: muted, grid: { stroke: border, width: 1 }, ticks: { stroke: border }, font: "11px system-ui", size: 44, values: (_u, v) => v.map((x) => String(x) + (w.unit ?? "")) },
         ],
         series: [
           {},
