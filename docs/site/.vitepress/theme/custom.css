@@ -1,0 +1,3 @@
+/* Widget screenshots: 2x PNGs, one per theme (web/scripts/widget-shots.sh). */
+.vp-doc img.shot { max-width: min(100%, 400px); height: auto; margin: 4px 0; }
+html.dark .vp-doc img.shot-light, html:not(.dark) .vp-doc img.shot-dark { display: none; }

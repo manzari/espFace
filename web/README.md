@@ -10,6 +10,7 @@ scripts/node.sh npm run build               # tsc + vite build + size report (fa
 scripts/node.sh npm test                    # Vitest: store/codec/OTA against protocol/vectors, icons vs the app, hardening against the in-process fake device
 scripts/e2e.sh                              # Playwright: smoke + hardening (seven fake devices with knobs + nginx renderer + Playwright, one Docker network)
 scripts/node.sh npm run icons               # regenerates src/icons-paths.ts from src/icons.json (commit the result)
+scripts/widget-shots.sh                     # docs widget screenshots, light + dark, into docs/site/public/widgets (commit the result)
 DOCKER_ARGS="-p 5173:5173" scripts/node.sh npm run dev   # dev server, open http://localhost:5173/connect/?host=localhost:18080
 ```
 
