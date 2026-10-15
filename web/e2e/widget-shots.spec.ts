@@ -116,8 +116,8 @@ const SCENARIOS: Scenario[] = [
     ty: "row",
     w: [
       { id: "control", ty: "group", lbl: "Control" }, { id: "r1", ty: "row", grp: "control" },
-      { id: "pump", ty: "switch", lbl: "Pump", row: "r1", size: 2, grp: "control" },
-      { id: "target", ty: "slider", lbl: "Target", min: 20, max: 90, unit: "°C", row: "r1", size: 3, grp: "control" },
+      { id: "pump", ty: "switch", lbl: "Pump", row: "r1", size: 2 },
+      { id: "target", ty: "slider", lbl: "Target", min: 20, max: 90, step: 1, unit: "°C", row: "r1", size: 3 },
     ],
     v: { pump: true, target: 65 },
   },
@@ -196,6 +196,7 @@ async function shoot(browser: Browser, s: Scenario, scheme: "light" | "dark") {
 test.use({ launchOptions: { env: { ...process.env, LC_ALL: "en_GB.UTF-8" } } });
 
 test.describe("widget screenshots", () => {
+  test.describe.configure({ mode: "parallel" });
   test.skip(process.env.ESPFACE_SHOTS !== "1", "set ESPFACE_SHOTS=1 (scripts/widget-shots.sh)");
   test.beforeAll(() => { mkdirSync(OUT, { recursive: true }); });
   for (const s of SCENARIOS) for (const scheme of ["light", "dark"] as const) test(`${s.ty} ${scheme}`, ({ browser }) => shoot(browser, s, scheme));

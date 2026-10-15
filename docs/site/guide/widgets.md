@@ -481,9 +481,10 @@ A page becomes a tab or bottom-navigation entry. Widgets declared afterwards bel
 ![row widget](/widgets/row-dark.png){.shot .shot-dark}
 
 ```cpp
+ui.group("control", "Control");
 ui.row("r1").group("control");
 ui.sw("pump", "Pump").row("r1").size(2);
-ui.slider("target", "Target", 20, 90).row("r1").size(3);
+ui.slider("target", "Target", 20, 90, 1, "°C").row("r1").size(3);
 ```
 
 Widgets with the same `row` sit side by side; `size` sets their relative widths.
@@ -494,7 +495,10 @@ Widgets with the same `row` sit side by side; `size` sets their relative widths.
 ![spacer widget](/widgets/spacer-dark.png){.shot .shot-dark}
 
 ```cpp
-ui.spacer("sp", 1, 16);
+ui.row("r1");
+ui.button("start", "Start").row("r1");
+ui.spacer("sp", 1, 16).row("r1");
+ui.button("stop", "Stop").row("r1");
 ```
 
 `spacer(id, w=1, h=8)` adds empty space of the given relative width and pixel height.
