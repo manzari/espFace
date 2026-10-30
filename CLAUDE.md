@@ -66,7 +66,7 @@ Notes on testing:
 
 Additions within v1 are fine because of the ignore-unknown rule. Removing or retyping anything requires protocol v2 and a new `/r/2/` path.
 
-**`/r/1/` is a frozen contract** (`web/RENDERER-VERSIONING.md`). Flashed devices serve a bootstrap page (`firmware/src/web/bootstrap.h`) that loads `ESPFACE_RENDERER_HOST/r/1/app.js` and `app.css` literally, for years, with year-long immutable caching. That means:
+**`/r/1/` is a frozen contract** (`web/RENDERER-VERSIONING.md`). The device serves the renderer from its own flash: the bootstrap page (`firmware/src/web/bootstrap.h`) loads `/r/1/app.js` from the device, which serves the gzipped bundle in `firmware/src/web/embed.h`. Devices flashed with firmware 1.0.0 instead load `https://espface.manzari.dev/r/1/app.js` literally, for years, with year-long immutable caching. That means:
 - Web builds one IIFE bundle with fixed file names and no hashes.
 - Changes must be backward compatible and must be safe to mix with older cached copies.
 - `npm run freeze` (`test/freeze.test.ts` + `scripts/freeze-check.mjs`) fails if any v1 widget or message type is dropped. Never edit the gate to make it pass.
@@ -93,7 +93,7 @@ Firmware constraints:
 - Icons: `web/src/icons.json` is the shared icon subset. `npm run icons` regenerates `src/icons-paths.ts`, and `web/test/icons.test.ts` checks that mobile `lib/features/render/icons.dart` maps exactly the same names.
 
 **Generated, committed files** (regenerate them; do not hand-edit):
-- `firmware/src/web/embed.h`: run `tools/embed-web.py` after a web build, for `ESPFACE_EMBED_WEB`.
+- `firmware/src/web/embed.h`: run `tools/embed-web.py` after a web build. Always compiled in; CI fails when it does not match the web build.
 - `web/src/icons-paths.ts`
 - `docs/site/public/widgets/*`: run `web/scripts/widget-shots.sh`.
 - Mobile store screenshots and icons: `apps/mobile/scripts/{screenshots,icons}.sh`.

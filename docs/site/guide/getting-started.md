@@ -95,7 +95,7 @@ The app finds devices on the same WiFi through mDNS (`_espface._tcp`). If the bo
 
 ### Browser
 
-The device serves a small bootstrap page at `http://<ip>/`. It loads the renderer from the renderer host, so the browser needs internet access unless the firmware was built with `ESPFACE_EMBED_WEB`. You can also open the hosted renderer for a device:
+The device serves a small bootstrap page at `http://<ip>/` that loads the renderer from the device itself, so no internet is needed. You can also open the hosted renderer for a device:
 
 ```text
 https://<renderer-host>/connect/?host=<host:port>

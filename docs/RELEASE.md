@@ -14,7 +14,7 @@ Legend: **[account]** needs the user's credentials, **[decision]** needs a decis
 
 | # | Decision | Status |
 |---|---|---|
-| 1 | Renderer host domain | Decided 2026-10-14: `https://espface.manzari.dev` (`ESPFACE_RENDERER_HOST`, `firmware/src/web/bootstrap.h`) |
+| 1 | Renderer host domain | Decided 2026-10-14: `https://espface.manzari.dev` (`/connect/`, `/flash/`, `/docs/`; `/r/1/` stays for devices flashed with 1.0.0, newer firmware serves the renderer from flash) |
 | 2 | Monorepo visibility | Decided: make `git.hauptstadt.monster/manzari/espFace` public (user does it) |
 | 3 | Mirror host for the Arduino library repo (`ESPFACE_MIRROR_URL`) | **Open** - GitHub, GitLab or Bitbucket, see section 2 |
 | 4 | PlatformIO account / owner name the package is published under | **Open** |
@@ -33,6 +33,7 @@ Legend: **[account]** needs the user's credentials, **[decision]** needs a decis
    docker run --rm -v "$PWD":/w -w /w/firmware -v espface-pio:/pio espface-pio test -e native
    docker run --rm -v "$PWD":/w -w /w/firmware -v espface-pio:/pio --entrypoint sh espface-pio tools/ci-build.sh esp32dev
    web/scripts/node.sh sh -c 'npm ci && npm run build && npm test && npm run freeze'
+   docker run --rm -u "$(id -u):$(id -g)" -v "$PWD":/w -w /w/firmware --entrypoint python3 espface-pio tools/embed-web.py   # embed.h must be committed fresh
    ```
 4. Merge to `main`, wait for CI to be green (includes the `renderer-v1-freeze` job).
 

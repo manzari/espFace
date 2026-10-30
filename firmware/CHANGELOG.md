@@ -3,6 +3,17 @@
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version numbers never contain the digit 4.
 Project-wide notes: https://git.hauptstadt.monster/manzari/espFace/src/branch/main/CHANGELOG.md
 
+## [Unreleased]
+
+### Changed
+- The web renderer is always served from flash at `/r/1/` (about 60 KB gzipped, no RAM; browsers revalidate it by
+  ETag). The bootstrap page loads it from the device, so the web UI and the captive portal work without internet.
+  `ESPFACE_EMBED_WEB` and the `EmbeddedWeb` example are gone, it is the default now.
+
+### Removed
+- `ESPFACE_RENDERER_HOST` and `EspFace::setRendererHost()`: the bootstrap page no longer loads anything from a host
+  (the setter never had an effect in 1.0.0).
+
 ## [1.0.0] - 2026-10-14
 
 First public release, protocol v1.

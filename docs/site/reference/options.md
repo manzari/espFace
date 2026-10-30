@@ -6,12 +6,10 @@ Define these as build flags (`-DNAME=value` in PlatformIO `build_flags`) or befo
 |---|---|---|
 | `ESPFACE_MAX_CLIENTS` | 4 | Maximum concurrent sessions across all transports; the next client gets err 9 |
 | `ESPFACE_LOG_HISTORY` | 0 | Number of log lines kept on the device and replayed to a client that connects later |
-| `ESPFACE_RENDERER_HOST` | `https://espface.manzari.dev` | Host the bootstrap page loads the renderer from. Use a quoted string: `-DESPFACE_RENDERER_HOST=\"https://your.host\"` |
 | `ESPFACE_PERSIST_MS` | 2000 | Persisted inputs are written to NVS at most once per this interval (ms); a slider drag costs one or two flash writes, not one per step |
 | `ESPFACE_FRAME_SIZE` | 1024 | Size of the frames the `ui` message is streamed in |
 | `ESPFACE_MAX_MSG` | 2048 | Largest accepted client-to-device message and stream line, in bytes |
 | `ESPFACE_NO_TLS` | off | Drop TLS: OTA and ntfy are http-only, https URLs fail with a log line |
-| `ESPFACE_EMBED_WEB` | off | Serve the gzipped renderer from flash (generate it with `tools/embed-web.py`) |
 | `ESPFACE_BLE` | off | Enable the NimBLE transport; needs `h2zero/NimBLE-Arduino@^2.5.1` |
 | `ESPFACE_BLE_MTU` | 512 | MTU the device accepts |
 | `ESPFACE_BLE_MAX_CONN` | 2 | Maximum BLE centrals |
@@ -22,7 +20,6 @@ Define these as build flags (`-DNAME=value` in PlatformIO `build_flags`) or befo
 | Call | Effect |
 |---|---|
 | `face.setPort(port)` | HTTP and WebSocket port (default 80, falls back to 8080 if the bind fails) |
-| `face.setRendererHost("https://host")` | Renderer host at runtime, overrides the compile-time default |
 | `face.enableWs(false)` | Skip the http and WebSocket server; call before `begin()` |
 | `face.logTo(Print*)` | Where library log lines go; `nullptr` silences them |
 | `face.setOtaCaCert(pem)` | CA certificate for https downloads and ntfy |
@@ -37,7 +34,6 @@ Each example lives in `firmware/examples/<Name>`. An example directory may carry
 |---|---|---|
 | `Minimal` | Gauge and switch | none |
 | `FullDemo` | Every widget, PIN, OTA, NTP, ntfy | none |
-| `EmbeddedWeb` | Renderer served from flash | `-DESPFACE_EMBED_WEB` and a generated `embed.h` |
 | `Notify` | ntfy alerts | none |
 | `SerialOnly` | UI on USB serial, no WiFi | none |
 | `BleOnly` | UI over BLE, no WiFi | `-DESPFACE_BLE`, NimBLE-Arduino |

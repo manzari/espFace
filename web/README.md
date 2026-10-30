@@ -1,6 +1,6 @@
 # espFace web renderer
 
-Vite + Preact + TypeScript. Builds one classic script `dist/r/1/app.js` plus `dist/r/1/app.css`; `app.js` injects its own stylesheet link and mounts into `#app`, which is all the device's bootstrap page provides. The same bundle is served by the hosted site (`server/renderer/`) and, gzipped into flash, by firmware built with `ESPFACE_EMBED_WEB`.
+Vite + Preact + TypeScript. Builds one classic script `dist/r/1/app.js` plus `dist/r/1/app.css`; `app.js` injects its own stylesheet link and mounts into `#app`, which is all the device's bootstrap page provides. The same bundle is gzipped into firmware flash (`firmware/src/web/embed.h`, regenerated with `firmware/tools/embed-web.py` after every build; CI fails when it is stale) and served by the hosted site (`server/renderer/`) for `/connect/`.
 
 Everything runs in Docker; nothing is installed on the host. `scripts/node.sh` wraps `node:22-alpine` with the repository mounted at `/w` and `web/` as working directory (the tests read `../protocol`).
 

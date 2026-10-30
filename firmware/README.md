@@ -108,9 +108,9 @@ docker run --rm -v "$PWD":/w -v espface-pio:/pio -w /w/firmware espface-pio test
 docker run --rm -v "$PWD":/w -v espface-pio:/pio -w /w/firmware --entrypoint sh espface-pio tools/ci-build.sh   # ESP32 builds + footprint.md
 ```
 
-Compile-time options: `ESPFACE_MAX_CLIENTS` (4), `ESPFACE_LOG_HISTORY` (0), `ESPFACE_RENDERER_HOST`, `ESPFACE_FRAME_SIZE` (1024), `ESPFACE_MAX_MSG` (2048, largest accepted C→D message and stream line), `ESPFACE_NO_TLS` (http-only OTA/ntfy), `ESPFACE_EMBED_WEB`, `ESPFACE_BLE` (NimBLE transport), `ESPFACE_BLE_MTU` (512), `ESPFACE_BLE_MAX_CONN` (2), `ESPFACE_BT_CLASSIC` (Bluedroid SPP, classic ESP32 only).
+Compile-time options: `ESPFACE_MAX_CLIENTS` (4), `ESPFACE_LOG_HISTORY` (0), `ESPFACE_FRAME_SIZE` (1024), `ESPFACE_MAX_MSG` (2048, largest accepted C→D message and stream line), `ESPFACE_NO_TLS` (http-only OTA/ntfy), `ESPFACE_BLE` (NimBLE transport), `ESPFACE_BLE_MTU` (512), `ESPFACE_BLE_MAX_CONN` (2), `ESPFACE_BT_CLASSIC` (Bluedroid SPP, classic ESP32 only).
 
-Examples: `Minimal` (gauge + switch), `FullDemo` (every widget, PIN, OTA, NTP, ntfy), `EmbeddedWeb` (renderer served from flash), `Notify` (ntfy alerts), `SerialOnly` (UI on USB serial, no WiFi), `BleOnly` (UI over BLE, no WiFi), `Provisioning` (main UI on WiFi, open WiFi-setup UI on BLE via `addUi`), `BtClassic` (UI over Bluetooth SPP, esp32dev only). An example directory may carry `build_flags`, `lib_deps`, `boards` and `project_options` files that `tools/ci-build.sh` applies.
+Examples: `Minimal` (gauge + switch), `FullDemo` (every widget, PIN, OTA, NTP, ntfy), `Notify` (ntfy alerts), `SerialOnly` (UI on USB serial, no WiFi), `BleOnly` (UI over BLE, no WiFi), `Provisioning` (main UI on WiFi, open WiFi-setup UI on BLE via `addUi`), `BtClassic` (UI over Bluetooth SPP, esp32dev only). An example directory may carry `build_flags`, `lib_deps`, `boards` and `project_options` files that `tools/ci-build.sh` applies.
 
 ## Hardening / limits
 
@@ -142,17 +142,16 @@ Examples: `Minimal` (gauge + switch), `FullDemo` (every widget, PIN, OTA, NTP, n
 
 Per-board flags, options and platform live in `tools/boards/`; examples that need a radio list their boards in `examples/<name>/boards`. The ESP32-C6 CI job may fail without failing the pipeline because it depends on the pioarduino fork.
 
-**Footprint** (flash / static RAM deltas against the baseline sketch, `tools/ci-build.sh`, 2026-10-14). CI fails when Minimal on esp32dev exceeds `footprint.budget` (current + 5 %).
+**Footprint** (flash / static RAM deltas against the baseline sketch, `tools/ci-build.sh`, 2026-10-31; every example includes the embedded renderer, about 59 KB). CI fails when Minimal on esp32dev exceeds `footprint.budget` (current + 5 %).
 
 | Example | esp32dev | esp32-s3 | esp32-s2 | esp32-c3 | esp32-c6 |
 |---|---|---|---|---|---|
-| Minimal | 56.6 KB / 1.1 KB | 54.3 KB / 1.2 KB | 69.8 KB / 1.4 KB | 51.7 KB / 1.1 KB | 51.0 KB / 1.1 KB |
-| SerialOnly | 84.3 KB / 1.1 KB | 82.5 KB / 1.2 KB | 97.3 KB / 1.4 KB | 78.6 KB / 1.1 KB | 63.2 KB / 1.1 KB |
-| EmbeddedWeb | 107.6 KB / 1.1 KB | 105.3 KB / 1.2 KB | 120.7 KB / 1.4 KB | 102.7 KB / 1.1 KB | 102.0 KB / 1.1 KB |
-| Notify | 239.7 KB / 3.2 KB | 235.5 KB / 2.3 KB | 237.0 KB / 2.2 KB | 235.4 KB / 2.2 KB | 194.7 KB / 3.1 KB |
-| FullDemo | 266.4 KB / 3.5 KB | 262.3 KB / 2.5 KB | 276.7 KB / 2.7 KB | 263.5 KB / 2.5 KB | 225.0 KB / 3.3 KB |
-| BleOnly | 324.0 KB / 12.0 KB | 262.5 KB / 8.7 KB | – | 278.3 KB / 8.7 KB | 386.7 KB / 7.9 KB |
-| Provisioning | 324.4 KB / 12.0 KB | 238.9 KB / 8.7 KB | – | 256.8 KB / 8.7 KB | 379.8 KB / 7.9 KB |
-| BtClassic | 811.5 KB / 14.7 KB | – | – | – | – |
+| Minimal | 116.6 KB / 1.1 KB | 114.1 KB / 1.2 KB | 129.6 KB / 1.4 KB | 111.7 KB / 1.1 KB | 111.0 KB / 1.1 KB |
+| SerialOnly | 144.3 KB / 1.1 KB | 142.4 KB / 1.2 KB | 157.3 KB / 1.4 KB | 138.7 KB / 1.1 KB | 123.3 KB / 1.1 KB |
+| Notify | 299.6 KB / 3.2 KB | 295.4 KB / 2.3 KB | 296.8 KB / 2.2 KB | 295.5 KB / 2.2 KB | 254.8 KB / 3.1 KB |
+| FullDemo | 326.3 KB / 3.5 KB | 322.2 KB / 2.5 KB | 336.7 KB / 2.7 KB | 323.5 KB / 2.5 KB | 285.1 KB / 3.3 KB |
+| BleOnly | 384.0 KB / 12.0 KB | 322.4 KB / 8.7 KB | – | 338.4 KB / 8.7 KB | 446.7 KB / 7.9 KB |
+| Provisioning | 384.3 KB / 12.0 KB | 298.7 KB / 8.7 KB | – | 316.8 KB / 8.7 KB | 439.7 KB / 7.9 KB |
+| BtClassic | 871.4 KB / 14.7 KB | – | – | – | – |
 
 Trimming in phase 6: the library is compiled with `-fno-exceptions` (PlatformIO, via `library.json`; about 16.5 KB on esp32dev; sketch callbacks must not throw through the library) and no longer links the ArduinoJson serializer (2.6 KB). Minimal on esp32dev went from 75.8 KB to 56.6 KB. `ARDUINOJSON_USE_DOUBLE=0`/`USE_LONG_LONG=0` would save another 2 KB but change number parsing and were left out; RTTI is already off in the Arduino core; `std::function` stays (replacing it would change the callback API).

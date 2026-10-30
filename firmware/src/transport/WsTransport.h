@@ -8,8 +8,8 @@
 
 namespace espface {
 
-// WebSocket transport on ESP-IDF esp_http_server. Also serves the bootstrap page, captive-portal probes and,
-// with ESPFACE_EMBED_WEB, the gzipped renderer at /r/1/app.js and /r/1/app.css.
+// WebSocket transport on ESP-IDF esp_http_server. Also serves the bootstrap page, captive-portal probes and the
+// gzipped renderer from flash at /r/1/app.js and /r/1/app.css (web/embed.h, ETag revalidated).
 // Half-dead sockets: a ping every ESPFACE_WS_PING_MS, a client silent for ESPFACE_WS_IDLE_MS is closed.
 class WsTransport : public Transport {
  public:
@@ -22,7 +22,6 @@ class WsTransport : public Transport {
   void close(uint8_t slot) override;
   bool supportsBinary() const override { return true; }
   void setBootstrap(const char* html, size_t len, bool gzip) { html_ = html; htmlLen_ = len; htmlGz_ = gzip; }
-  void setRendererHost(const char* host) { host_ = host; }
   httpd_handle_t handle() const { return hd_; }
   bool running() const { return hd_ != nullptr; }
 
@@ -31,9 +30,7 @@ class WsTransport : public Transport {
   struct Event { EvType type; int fd; uint8_t* data; size_t len; };
   static esp_err_t wsHandler(httpd_req_t* req);
   static esp_err_t pageHandler(httpd_req_t* req);
-#ifdef ESPFACE_EMBED_WEB
   static esp_err_t embedHandler(httpd_req_t* req);
-#endif
   static void closeFn(httpd_handle_t hd, int fd);
   void post(EvType t, int fd, uint8_t* data = nullptr, size_t len = 0);
   int slotOf(int fd) const;
@@ -46,7 +43,6 @@ class WsTransport : public Transport {
   uint32_t lastRx_[ESPFACE_MAX_CLIENTS], lastPing_[ESPFACE_MAX_CLIENTS];
   uint16_t port_ = 80;
   const char* html_ = nullptr; size_t htmlLen_ = 0; bool htmlGz_ = false;
-  const char* host_ = "";
 };
 
 }  // namespace espface

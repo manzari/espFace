@@ -36,7 +36,6 @@ class EspFace {
   EspFace& setPort(uint16_t port) { ws_.setPort(port); return *this; }
   EspFace& enableWs(bool on) { wsOn_ = on; return *this; }              // before begin(); false skips the http/WebSocket server
   EspFace& logTo(Print* p) { setLogOutput(p); return *this; }           // library log lines; nullptr silences them
-  EspFace& setRendererHost(const char* host) { ws_.setRendererHost(host); return *this; }
   // Inline on purpose: Update, HTTPClient and TLS are linked only when a sketch calls these.
   EspFace& enableOta(bool on) {                                // caps ota + otaurl, POST /update
     otaOn_ = on;

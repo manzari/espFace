@@ -4,7 +4,7 @@
 
 - The device answers the OS detection URLs (`/generate_204`, `/hotspot-detect.html`, `/connecttest.txt`, `/ncsi.txt`) with the bootstrap page. Android may still need a tap on the "Sign in to network" notification.
 - Phones tend to drop or deprioritise a WiFi network without internet. The captive flow is mainly for getting WiFi credentials in; the app is the primary UI.
-- The bootstrap page loads the renderer from the renderer host, so the phone needs internet. A build with `ESPFACE_EMBED_WEB` serves the renderer from flash and works offline.
+- The device serves the renderer itself, so no internet is needed. Firmware 1.0.0 loaded it from the renderer host instead; update the library if the page shows "No internet".
 
 ## iOS cannot find my device
 

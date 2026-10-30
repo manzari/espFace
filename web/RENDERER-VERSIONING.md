@@ -1,8 +1,9 @@
 # Renderer versioning: `/r/1/` is frozen
 
-Devices do not ship the web renderer. Their bootstrap page (`firmware/src/web/bootstrap.h`) loads
-`ESPFACE_RENDERER_HOST + "/r/1/app.js"` (default `https://espface.manzari.dev/r/1/app.js`), and that URL is baked into
-every firmware ever flashed. Devices stay in the field for years without updates, so the hosted path is a contract.
+Firmware since 1.0.x serves its own copy of the renderer from flash (`firmware/src/web/embed.h`), so the device page works
+without internet. Firmware 1.0.0 did not: its bootstrap page loads `https://espface.manzari.dev/r/1/app.js`, and that
+URL is baked into every such device ever flashed. Devices stay in the field for years without updates, so the hosted
+path is a contract. It also serves `/connect/?host=` for browsers that open a device through the hosted site.
 
 ## Rules
 

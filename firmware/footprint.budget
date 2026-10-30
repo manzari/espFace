@@ -1,2 +1,2 @@
-59468
-# Max Minimal flash delta vs baseline on esp32dev in bytes (56636 measured 2026-10-14 + 5 %), checked by tools/footprint-check.sh in CI.
+122383
+# Max Minimal flash delta vs baseline on esp32dev in bytes (116556 measured 2026-10-31 + 5 %), checked by tools/footprint-check.sh in CI.

@@ -1,15 +1,12 @@
 # Web renderer
 
-A Vite, Preact and TypeScript renderer that builds to one script `app.js` and one stylesheet `app.css`. The same bundle is served by the hosted site and, gzipped into flash, by firmware built with `ESPFACE_EMBED_WEB`.
+A Vite, Preact and TypeScript renderer that builds to one script `app.js` and one stylesheet `app.css`. The same bundle is gzipped into the firmware, which serves it from flash, and hosted on the renderer site for `/connect/`.
 
-## Hosted or embedded
+## Served by the device
 
-| Mode | How | Needs internet in the browser |
-|---|---|---|
-| Hosted | The device's bootstrap page loads `https://<renderer-host>/r/1/app.js` | yes |
-| Embedded | Firmware built with `-DESPFACE_EMBED_WEB` serves the renderer from flash (`EmbeddedWeb` example) | no |
+Every device serves the renderer itself at `/r/1/app.js` and `/r/1/app.css`, so `http://<ip>/` and the captive portal work without internet. The copy costs about 60 KB of flash and no RAM. The browser revalidates it with an ETag, so a reflashed device never runs a stale cached copy.
 
-To embed, build the web bundle (in `web/`), then run the embed tool from the repository root in the PlatformIO image, which writes `firmware/src/web/embed.h`:
+After changing the renderer, rebuild the web bundle (in `web/`) and run the embed tool from the repository root in the PlatformIO image, which rewrites `firmware/src/web/embed.h`. CI fails when the committed file does not match the build:
 
 ```sh
 (cd web && scripts/node.sh npm run build)
@@ -18,17 +15,11 @@ docker run --rm -v "$PWD":/w -w /w/firmware --entrypoint python3 espface-pio too
 
 ## Bootstrap page
 
-The device serves a roughly 2 KB bootstrap page at `/` that loads the renderer from the renderer host. The default host comes from `ESPFACE_RENDERER_HOST`. For your own copy set it at build time or at runtime:
-
-```cpp
-face.setRendererHost("https://your.host");
-```
-
-If the load fails after a few seconds, the page tells the user to install the app or use a build with embedded web.
+The device serves a roughly 2 KB bootstrap page at `/` (and for the captive-portal probe URLs) that loads `/r/1/app.js` from the device. If that fails, the page shows a short error and suggests reloading or using the app.
 
 ## Versioned URLs
 
-The hosted site serves the bundle at `/r/<major>/`, today `/r/1/app.js` and `/r/1/app.css`, with immutable caching and CORS `*`. A breaking change goes to `/r/2/` while `/r/1/` stays for old firmware. The protocol major in `hello` selects the path.
+The hosted site serves the bundle at `/r/<major>/`, today `/r/1/app.js` and `/r/1/app.css`, with immutable caching and CORS `*`. Firmware 1.0.0 loads the renderer from there; newer firmware serves the same path itself. A breaking change goes to `/r/2/` while `/r/1/` stays for old firmware. The protocol major in `hello` selects the path.
 
 Other URLs of the hosted site:
 
@@ -59,7 +50,7 @@ Device pages are served over http, an insecure context where `crypto.subtle` doe
    - Docker Compose location: `/server/renderer/docker-compose.yml`.
 2. Set the domain on the service. Coolify fills `SERVICE_FQDN_RENDERER_80` from it. No ports are published; Traefik terminates TLS and proxies to port 80.
 3. Deploy. The container is healthy when `GET /healthz` answers `ok`.
-4. Point your devices at it with `-DESPFACE_RENDERER_HOST=\"https://your.host\"` or `face.setRendererHost()`.
+4. Open devices through `https://your.host/connect/?host=<host:port>`.
 
 The image builds with `npm ci && npm run build` inside Docker, so nothing is built on the host.
 

@@ -21,6 +21,8 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
       - run: cd protocol && npm ci && node test/validate.mjs --d2c ../firmware/test_output/d2c.jsonl
+      # firmware/src/web/embed.h is the renderer the device serves; it must match the committed web sources.
+      - run: cd web && npm ci && npm run build && python3 ../firmware/tools/embed-web.py && git diff --exit-code ../firmware/src/web/embed.h
 
   # Every example on every chip; one footprint table per board. ESP32-C6 builds on the pioarduino platform fork
   # (tools/boards/esp32-c6-devkitc-1.platform) and may fail without breaking the pipeline.

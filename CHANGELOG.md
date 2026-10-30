@@ -10,6 +10,11 @@ the mobile app's store notes in `apps/mobile/`.
 
 ## [Unreleased]
 
+### Firmware
+- The device serves the web renderer from its own flash (about 60 KB gzipped), so `http://<ip>/` and the captive
+  portal work without internet. `ESPFACE_EMBED_WEB`, `ESPFACE_RENDERER_HOST`, `setRendererHost()` and the
+  `EmbeddedWeb` example are gone; the hosted `/r/1/` stays for devices flashed with 1.0.0.
+
 ## [1.0.0] - 2026-10-14
 
 First public release. Protocol v1 is stable; the hosted web renderer at `/r/1/` is frozen
