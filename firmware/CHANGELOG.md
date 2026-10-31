@@ -5,10 +5,17 @@ Project-wide notes: https://git.hauptstadt.monster/manzari/espFace/src/branch/ma
 
 ## [Unreleased]
 
+### Fixed
+- The WebSocket server initialised the network stack itself before opening its socket. Without this `begin()`
+  before `wifi().autoConnect()` asserted in lwIP (`xQueueSemaphoreTake`) and boot-looped, seen on the ESP32-C6.
+
 ### Changed
 - The web renderer is always served from flash at `/r/1/` (about 60 KB gzipped, no RAM; browsers revalidate it by
   ETag). The bootstrap page loads it from the device, so the web UI and the captive portal work without internet.
   `ESPFACE_EMBED_WEB` and the `EmbeddedWeb` example are gone, it is the default now.
+- `reboot`, `pin.set` and `revoke` honour the `reboot` and `pin` capabilities: `core().removeCap("pin")` /
+  `removeCap("reboot")` switch them off at runtime (err 8, clients hide the page), `addCap` restores them.
+  `POST /update` answers 404 while the `ota` capability is withdrawn (`enableOta(false)`).
 
 ### Removed
 - `ESPFACE_RENDERER_HOST` and `EspFace::setRendererHost()`: the bootstrap page no longer loads anything from a host

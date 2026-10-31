@@ -2,6 +2,11 @@
 #include "WsTransport.h"
 #include "../core/Core.h"
 #include <Arduino.h>
+#if __has_include(<Network.h>)
+#include <Network.h>   // Arduino core 3.x
+#else
+bool tcpipInit();      // core 2.x: defined in WiFiGeneric.cpp without a header
+#endif
 #include <unistd.h>
 #include "../web/embed.h"
 
@@ -23,6 +28,12 @@ void WsTransport::begin() {
   cfg.global_user_ctx_free_fn = [](void*) {};
   cfg.uri_match_fn = httpd_uri_match_wildcard;
   cfg.stack_size = 6144;
+  // lwIP must be up before httpd opens its socket; begin() runs before WiFi.mode()
+#if __has_include(<Network.h>)
+  Network.begin();
+#else
+  tcpipInit();
+#endif
   if (httpd_start(&hd_, &cfg) != ESP_OK) {
     logf("port %u busy, trying 8080", port_);
     port_ = 8080; cfg.server_port = 8080; cfg.ctrl_port = 32768 + 8080;

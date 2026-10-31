@@ -251,8 +251,13 @@ void Core::handleSys(Client& c, void* doc) {
       if (infoFill) infoFill(jw); else { jw.kv("chip", "native"); jw.kv("heap", (uint32_t)0); }
     });
   }
-  if (!strcmp(cmd, "reboot")) { reply([&](JsonWriter& jw) { jw.kv("ok", true); }); requestReboot(RebootReason::Client); return; }
+  // reboot, pin.set and revoke honour their capabilities so a sketch can switch them off with removeCap().
+  if (!strcmp(cmd, "reboot")) {
+    if (!hasCap("reboot")) return sendErr(c.slot, 8, "capability not available", cmd);
+    reply([&](JsonWriter& jw) { jw.kv("ok", true); }); requestReboot(RebootReason::Client); return;
+  }
   if (!strcmp(cmd, "pin.set")) {
+    if (!hasCap("pin")) return sendErr(c.slot, 8, "capability not available", cmd);
     const char* pin = DOC["pin"];
     if (!pin) return sendErr(c.slot, 7, "pin required", "pin.set");
     bool ok = auth_.setPinRuntime(pin);
@@ -260,6 +265,7 @@ void Core::handleSys(Client& c, void* doc) {
     return;
   }
   if (!strcmp(cmd, "revoke")) {
+    if (!hasCap("pin")) return sendErr(c.slot, 8, "capability not available", cmd);
     auth_.revoke();
     reply([&](JsonWriter& jw) { jw.kv("ok", true); });
     for (auto& o : clients_) if (o.used && o.slot != c.slot && o.tr) o.tr->close(o.slot);

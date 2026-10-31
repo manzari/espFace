@@ -82,6 +82,7 @@ Common chain modifiers: `.group(id)`, `.page(id)`, `.row(id)`, `.size(w, h=0)`, 
 | `face.setOtaCaCert(pem)` | CA certificate for https downloads and ntfy; without it https is used **unverified** (`setInsecure`) | |
 | `face.enableNtp(true, "pool.ntp.org", "CET-1CEST,M3.5.0,M10.5.0/3")` | IDF SNTP; the system time feeds `face.time()` and the clock widgets, rechecked every 10 min. `tz` is a POSIX TZ string or `nullptr` | `ntp` |
 | `face.ntfy("https://ntfy.sh", "topic", token)` / `face.notify(title, msg, Ntfy::High)` | direct ntfy POST from the device, one FreeRTOS task per message (loop never blocks); rate limit `face.ntfyRateLimit(ms)` (default 10 s), queue of 4, `notify()` returns false when full | `ntfy` |
+| `face.core().removeCap("pin")` / `removeCap("reboot")` / `removeCap("wifi")`, `addCap(..)` | switches a system feature off at runtime: the command is answered with `err` 8 and clients hide its page (`enableOta(false)` does the same for OTA, including `POST /update`). Useful for a device that must refuse reconfiguration in some state | |
 | `face.reboot()` / `face.onReboot(fn)` / `face.resetReason()` | reboot with callback; last reset reason as `ota\|button\|panic\|power\|wdt\|sw\|brownout\|other` (an OTA reboot leaves a marker in NVS so it reads `ota`) | `reboot` |
 
 ## Transports

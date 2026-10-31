@@ -102,6 +102,7 @@ struct MultipartBody {
 static esp_err_t updateHandler(httpd_req_t* req) {
   HttpCtx* ctx = (HttpCtx*)req->user_ctx;
   httpd_resp_set_type(req, "text/plain");
+  if (!ctx->core->hasCap("ota")) { httpd_resp_set_status(req, "404 Not Found"); return httpd_resp_sendstr(req, "ota disabled"); }
   if (!authorized(req, *ctx->core)) { httpd_resp_set_status(req, "401 Unauthorized"); return httpd_resp_sendstr(req, "unauthorized"); }
   if (ctx->ota->busy()) { httpd_resp_set_status(req, "409 Conflict"); return httpd_resp_sendstr(req, "ota in progress"); }
   char ctype[160] = "";

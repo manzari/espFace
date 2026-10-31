@@ -12,6 +12,8 @@ System features are gated by capabilities. The device announces them in its `hel
 | `info`, `reboot` | on by default |
 | `ble` | `face.ble()` |
 
+A capability can be withdrawn at runtime with `face.core().removeCap("pin")` (also `reboot`, `wifi`) and restored with `addCap`; `face.enableOta(false)` withdraws `ota` and `otaurl` and makes `POST /update` answer 404. While a capability is missing its commands are answered with err 8 and the clients hide the page. A device that must refuse reconfiguration in some state (a time lock, a running batch) uses this together with `prop(id).disabled(true)`, which the core enforces on incoming `set` messages.
+
 ## WiFi provisioning
 
 ```cpp

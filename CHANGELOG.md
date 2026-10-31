@@ -14,6 +14,10 @@ the mobile app's store notes in `apps/mobile/`.
 - The device serves the web renderer from its own flash (about 60 KB gzipped), so `http://<ip>/` and the captive
   portal work without internet. `ESPFACE_EMBED_WEB`, `ESPFACE_RENDERER_HOST`, `setRendererHost()` and the
   `EmbeddedWeb` example are gone; the hosted `/r/1/` stays for devices flashed with 1.0.0.
+- Fixed: the http/WebSocket server now brings up the network stack before opening its socket; `face.begin()` before
+  `wifi().autoConnect()` boot-looped on the ESP32-C6 (lwIP assert).
+- `reboot`, `pin.set` and `revoke` honour the `reboot` and `pin` capabilities, so `core().removeCap()` can switch
+  them off at runtime (err 8, clients hide the page); `POST /update` answers 404 while `ota` is withdrawn.
 
 ## [1.0.0] - 2026-10-14
 

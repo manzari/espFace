@@ -690,6 +690,23 @@ void test_caps_gating() {
   r.core.removeCap("ota"); r.core.removeCap("nope");
   TEST_ASSERT_FALSE(r.core.hasCap("ota"));
   TEST_ASSERT_TRUE(r.core.hasCap("ntp"));
+  // the default caps gate their commands too
+  r.core.removeCap("pin"); r.core.removeCap("reboot");
+  r.sendMsg("{\"t\":\"sys\",\"cmd\":\"pin.set\",\"pin\":\"5678\"}");
+  TEST_ASSERT_EQUAL(8, r.tr.last()["code"].as<int>());
+  TEST_ASSERT_EQUAL_STRING("pin.set", r.tr.last()["ref"]);
+  TEST_ASSERT_FALSE(r.core.auth().hasPin());
+  r.sendMsg("{\"t\":\"sys\",\"cmd\":\"revoke\"}");
+  TEST_ASSERT_EQUAL(8, r.tr.last()["code"].as<int>());
+  r.sendMsg("{\"t\":\"sys\",\"cmd\":\"reboot\"}");
+  TEST_ASSERT_EQUAL(8, r.tr.last()["code"].as<int>());
+  TEST_ASSERT_FALSE(r.core.rebootPending());
+  r.core.addCap("pin"); r.core.addCap("reboot");
+  r.sendMsg("{\"t\":\"sys\",\"cmd\":\"pin.set\",\"pin\":\"5678\"}");
+  TEST_ASSERT_TRUE(r.tr.last()["ok"].as<bool>());
+  TEST_ASSERT_TRUE(r.core.auth().hasPin());
+  r.sendMsg("{\"t\":\"sys\",\"cmd\":\"reboot\"}");
+  TEST_ASSERT_TRUE(r.core.rebootPending());
 }
 
 void test_ota_push_state_machine() {
