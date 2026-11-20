@@ -20,7 +20,9 @@ COPY docs/site .
 RUN npm run build
 
 # Renderer only, without the docs build (web/scripts/widget-shots.sh renders the docs screenshots against it).
-FROM nginx:1.27-alpine AS web
+# Slim variant: no curl, libxslt or image libraries to keep patched. The upgrade takes Alpine fixes newer than the base.
+FROM nginx:1.31-alpine-slim AS web
+RUN apk upgrade --no-cache
 COPY server/renderer/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /w/web/dist /usr/share/nginx/html
 EXPOSE 80
