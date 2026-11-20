@@ -42,8 +42,8 @@ Description: |
 # Three APKs per release (armeabi-v7a, arm64-v8a, x86_64), so 9 keeps the newest 3 releases whole.
 ArchivePolicy: 9
 
-# Fill in after creating the release key (RELEASE.md, "Signing key"): SHA-256 of the signing cert, lowercase, no colons.
-# AllowedAPKSigningKeys:
-#   - <sha256>
+# SHA-256 of the release signing cert (RELEASE.md, "Signing key"), lowercase, no colons.
+AllowedAPKSigningKeys:
+  - c9bb606b0647d8d4fbc7ff028f050206b46ffefd442694f4bb76a1450218db23
 
 CurrentVersionCode: 2147483647
