@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # Landing page: this directory is the content, engine/ renders it.
-# engine/ is a copy of the apppage engine at commit 05ef896 (its bin, config,
+# engine/ is a copy of the apppage engine at commit 5412d8b (its bin, config,
 # src and build files), with the Impressum citing the DDG.
 
 FROM ruby:3.2-alpine AS builder

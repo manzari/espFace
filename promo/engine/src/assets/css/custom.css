@@ -629,6 +629,19 @@ body {
   color: #ffffff;
 }
 
+.cta-button.is-source {
+  background: #24292f;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+}
+
+.cta-button.is-source:hover {
+  background: #32383f;
+  transform: translateY(-3px);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25), 0 15px 40px rgba(0, 0, 0, 0.4);
+  color: #ffffff;
+}
+
 .cta-button.is-coming-soon {
   background: rgba(255, 255, 255, 0.15);
   color: rgba(255, 255, 255, 0.8);
@@ -663,7 +676,7 @@ body {
 
 .footer-links {
   display: flex;
-  gap: 2rem;
+  gap: 0.75rem 2rem;
   justify-content: flex-end;
   flex-wrap: wrap;
 }

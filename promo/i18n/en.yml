@@ -103,6 +103,9 @@ store_buttons:
   fdroid:
     small: "Add the repo in"
     label: "F-Droid"
+  source:
+    small: "View the"
+    label: "Source code"
   contact:
     small: "Questions?"
     label: "Get in touch"
@@ -115,6 +118,7 @@ cta_buttons:
   appstore: "Download for iOS"
   playstore: "Get it on Google Play"
   fdroid: "Add the F-Droid repo"
+  source: "View the source code"
   contact: "Get in touch"
   coming_soon: "Coming soon"
 
@@ -123,6 +127,7 @@ footer:
   terms: "Terms of Service"
   impressum: "Impressum"
   contact: "Contact"
+  source: "Source code"
   rights: "Released under the MIT license."
 
 page:

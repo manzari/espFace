@@ -17,3 +17,7 @@
   url_key: fdroid_url
   icon: fab fa-android
   cta_class: is-fdroid
+- key: source
+  url_key: source_url
+  icon: fab fa-git-alt
+  cta_class: is-source

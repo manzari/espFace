@@ -12,6 +12,8 @@ languages: [en]
 web_app_url: "https://r.espface.manzari.dev/docs/"
 fdroid_url: "https://fdroid.manzari.dev/fdroid/repo?fingerprint=857764caf002a8a2dcccfb9f3da913e056602a0170d5b48512851806d1cc274f"
 # play_store_url: "https://play.google.com/store/apps/details?id=dev.manzari.espface"
+# Source-code button and footer link; switch it on once the repository is public.
+# source_url: "https://git.hauptstadt.monster/manzari/espFace"
 # app_store_url: ""
 
 contact_email: "mail@manzari.dev"

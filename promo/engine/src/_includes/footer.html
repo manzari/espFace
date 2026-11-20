@@ -12,6 +12,9 @@
           <a href="{{ lang_root }}terms/">{{ t.footer.terms }}</a>
           <a href="/impressum/">{{ t.footer.impressum }}</a>
           <a href="mailto:{{ site.contact_email }}">{{ t.footer.contact }}</a>
+          {%- if site.source_url and t.footer.source %}
+          <a href="{{ site.source_url }}" target="_blank" rel="noopener noreferrer">{{ t.footer.source }}</a>
+          {%- endif %}
         </div>
         <div class="footer-lang">
           {%- include lang_switcher.html show_current=true -%}
