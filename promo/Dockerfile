@@ -58,6 +58,13 @@ COPY --from=builder /site/_site /usr/share/nginx/html
 COPY --from=builder /site/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=builder /site/nginx-security-headers.conf /etc/nginx/snippets/security-headers.conf
 
+# This host used to be the renderer host. renderer-host.conf keeps the old paths
+# answering; it goes into the engine's server block, whose last line closes it.
+COPY renderer-host.conf /etc/nginx/snippets/renderer-host.conf
+RUN sed -i '$ s|^}$|    include /etc/nginx/snippets/renderer-host.conf;\n}|' /etc/nginx/conf.d/default.conf && \
+    grep -q renderer-host.conf /etc/nginx/conf.d/default.conf && \
+    nginx -t
+
 EXPOSE 80
 
 CMD ["nginx", "-g", "daemon off;"]

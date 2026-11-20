@@ -5,6 +5,11 @@ without internet. Firmware 1.0.0 did not: its bootstrap page loads `https://espf
 URL is baked into every such device ever flashed. Devices stay in the field for years without updates, so the hosted
 path is a contract. It also serves `/connect/?host=` for browsers that open a device through the hosted site.
 
+The renderer host moved to `https://r.espface.manzari.dev` on 2026-11-20. `espface.manzari.dev` is the landing page
+since then and keeps the contract by rule 3: `promo/renderer-host.conf` answers `/r/` with a 301 to the new host that
+carries the CORS headers. The script URL a device page sees stays the old one, so `app.css` is requested from the old
+host as well and takes the same redirect.
+
 ## Rules
 
 1. **One path per protocol major.** `/r/1/` serves protocol v1. A protocol v2 (a breaking change by

@@ -1,15 +1,12 @@
 # Tenant config for the engrossify render API; the apppage build posts it to
 # $ENGROSSIFY_URL/api/render and gets the privacy policy and the terms back.
-#
-# DRAFT: legal_check_done is false, so every render carries the review banners.
-# Have the rendered output reviewed before setting it to true.
 
 slug: espface
 name: espFace
 languages: [en]
 documents: [privacy, terms-of-service]
 audience: both
-legal_check_done: false
+legal_check_done: true
 
 controller:
   name: Marco Manzari
@@ -26,7 +23,7 @@ supervisory_authority:
   key: berlin
 
 site:
-  url: https://espface-app.manzari.dev
+  url: https://espface.manzari.dev
   hosting_provider: Hetzner Online GmbH
   hosting_country: DE
   fonts_self_hosted: true

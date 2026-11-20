@@ -14,7 +14,7 @@ Legend: **[account]** needs the user's credentials, **[decision]** needs a decis
 
 | # | Decision | Status |
 |---|---|---|
-| 1 | Renderer host domain | Decided 2026-10-14: `https://espface.manzari.dev` (`/connect/`, `/flash/`, `/docs/`; `/r/1/` stays for devices flashed with 1.0.0, newer firmware serves the renderer from flash) |
+| 1 | Renderer host domain | Decided 2026-10-14: `https://espface.manzari.dev`. Moved 2026-11-20 to `https://r.espface.manzari.dev` (`/connect/`, `/flash/`, `/docs/`; `/r/1/` stays for devices flashed with 1.0.0, newer firmware serves the renderer from flash). The old host is the landing page and redirects these paths |
 | 2 | Monorepo visibility | Decided: make `git.hauptstadt.monster/manzari/espFace` public (user does it) |
 | 3 | Mirror host for the Arduino library repo (`ESPFACE_MIRROR_URL`) | **Open** - GitHub, GitLab or Bitbucket, see section 2 |
 | 4 | PlatformIO account / owner name the package is published under | **Open** |
@@ -108,8 +108,13 @@ unpublished within the registry's grace period (`pio pkg unpublish <owner>/espFa
 
 ## 4. Renderer and docs host (Coolify) **[account]**
 
-Host decided: `https://espface.manzari.dev`. The `server/renderer` image serves `/`, `/r/1/`, `/connect/`, `/flash/`
+Host: `https://r.espface.manzari.dev`. The `server/renderer` image serves `/`, `/r/1/`, `/connect/`, `/flash/`
 and `/docs/`; setup is in `server/renderer/README.md`.
+
+`https://espface.manzari.dev` was the renderer host until 2026-11-20 and is the landing page now (`promo/`, its own
+Docker Compose resource with base directory `/promo`). Firmware 1.0.0 loads `https://espface.manzari.dev/r/1/app.js`,
+so the landing page redirects `/r/`, `/connect/`, `/flash/` and `/docs/` to the renderer host
+(`promo/renderer-host.conf`); a landing page deploy without that redirect breaks those devices.
 
 1. Verify locally:
    ```
@@ -119,9 +124,10 @@ and `/docs/`; setup is in `server/renderer/README.md`.
    docker stop espface-renderer-check
    ```
 2. In the Coolify UI: the Docker Compose resource from this repo (`/server/renderer/docker-compose.yml`), domain
-   `https://espface.manzari.dev`, branch `main` (or the tag). Press **Deploy** (or let the git webhook do it).
+   `https://r.espface.manzari.dev`, branch `main` (or the tag). Press **Deploy** (or let the git webhook do it).
    Never change the server by hand.
-3. Check `https://espface.manzari.dev/r/1/app.js` and the footer of the system page (renderer version), `/docs/`.
+3. Check `https://r.espface.manzari.dev/r/1/app.js` and the footer of the system page (renderer version), `/docs/`.
+   `curl -sI https://espface.manzari.dev/r/1/app.js` must answer 301 to that URL with `Access-Control-Allow-Origin: *`.
 4. `/r/1/` is frozen: read `web/RENDERER-VERSIONING.md` before any renderer change.
 
 ## 5. Docs

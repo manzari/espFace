@@ -43,10 +43,10 @@ scripts/flutter.sh build apk --debug
 # docs site (VitePress; regenerates the API reference from firmware headers first)
 docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/w -w /w/docs/site node:22-alpine sh -c "npm ci && npm run build"
 
-# hosted image: renderer + /flash/ + /docs/ (this is what Coolify deploys)
+# hosted image: renderer + /flash/ + /docs/ (this is what Coolify deploys at r.espface.manzari.dev)
 docker build -f server/renderer/Dockerfile -t espface-renderer . && docker run --rm -p 8081:80 espface-renderer
 
-# landing page (promo/, its own Coolify resource): local preview with placeholder legal pages, then its screenshots
+# landing page (promo/, its own Coolify resource at espface.manzari.dev): local preview with placeholder legal pages, then its screenshots
 docker build --build-arg ALLOW_PLACEHOLDER_LEGAL=1 -t espface-promo promo && docker run --rm -p 8888:80 espface-promo
 apps/mobile/scripts/promo-shots.sh                        # promo/images/phone-*.jpg
 web/scripts/promo-shots.sh                                # promo/images/web-*.jpg
@@ -71,7 +71,7 @@ Notes on testing:
 
 Additions within v1 are fine because of the ignore-unknown rule. Removing or retyping anything requires protocol v2 and a new `/r/2/` path.
 
-**`/r/1/` is a frozen contract** (`web/RENDERER-VERSIONING.md`). The device serves the renderer from its own flash: the bootstrap page (`firmware/src/web/bootstrap.h`) loads `/r/1/app.js` from the device, which serves the gzipped bundle in `firmware/src/web/embed.h`. Devices flashed with firmware 1.0.0 instead load `https://espface.manzari.dev/r/1/app.js` literally, for years, with year-long immutable caching. That means:
+**`/r/1/` is a frozen contract** (`web/RENDERER-VERSIONING.md`). The device serves the renderer from its own flash: the bootstrap page (`firmware/src/web/bootstrap.h`) loads `/r/1/app.js` from the device, which serves the gzipped bundle in `firmware/src/web/embed.h`. Devices flashed with firmware 1.0.0 instead load `https://espface.manzari.dev/r/1/app.js` literally, for years, with year-long immutable caching. That host is the landing page now; `promo/renderer-host.conf` redirects `/r/`, `/connect/`, `/flash/` and `/docs/` to the renderer host `https://r.espface.manzari.dev`, and that redirect must stay. That means:
 - Web builds one IIFE bundle with fixed file names and no hashes.
 - Changes must be backward compatible and must be safe to mix with older cached copies.
 - `npm run freeze` (`test/freeze.test.ts` + `scripts/freeze-check.mjs`) fails if any v1 widget or message type is dropped. Never edit the gate to make it pass.
