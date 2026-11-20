@@ -13,6 +13,7 @@
 #   i18n/<lang>.yml   all translatable strings
 #   images/           screenshots + favicon
 #   brand.css         optional per-project style overrides
+#   fonts/            optional webfonts for brand.css
 #   assetlinks.json   optional Android Digital Asset Links statement list
 
 set -eu
@@ -78,6 +79,13 @@ if [ -f "$CONTENT/brand.css" ]; then
   cp "$CONTENT/brand.css" src/assets/css/brand.css
 else
   : > src/assets/css/brand.css
+fi
+
+# Optional webfonts for brand.css, served at /assets/fonts/brand/.
+rm -rf src/assets/fonts/brand
+if [ -d "$CONTENT/fonts" ]; then
+  mkdir -p src/assets/fonts/brand
+  find "$CONTENT/fonts" -type f -exec cp {} src/assets/fonts/brand/ \;
 fi
 
 # Optional Digital Asset Links, served at /.well-known/assetlinks.json.

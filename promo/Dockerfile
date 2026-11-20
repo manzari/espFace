@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # Landing page: this directory is the content, engine/ renders it.
-# engine/ is a copy of the apppage engine at commit 5412d8b (its bin, config,
+# engine/ is a copy of the apppage engine at commit 81fb0e3 (its bin, config,
 # src and build files), with the Impressum citing the DDG.
 
 FROM ruby:3.2-alpine AS builder
@@ -42,6 +42,8 @@ RUN --mount=type=secret,id=engrossify_api_key \
 COPY brand.css /project/
 COPY i18n /project/i18n
 COPY images /project/images
+# Optional webfonts for brand.css: the pattern matches nothing until promo/fonts exists.
+COPY font[s] /project/fonts
 RUN sh bin/apply-content.sh /project
 
 RUN mkdir -p src/assets/css/vendor/fontawesome src/assets/fonts/fontawesome src/assets/fonts/inter && \
