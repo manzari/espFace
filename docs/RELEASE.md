@@ -14,7 +14,7 @@ Legend: **[account]** needs the user's credentials, **[decision]** needs a decis
 
 | # | Decision | Status |
 |---|---|---|
-| 1 | Renderer host domain | Decided 2026-10-14: `https://espface.manzari.dev`. Moved 2026-11-20 to `https://r.espface.manzari.dev` (`/connect/`, `/flash/`, `/docs/`; `/r/1/` stays for devices flashed with 1.0.0, newer firmware serves the renderer from flash). The old host is the landing page and redirects these paths |
+| 1 | Renderer host domain | Decided 2026-10-14: `https://espface.manzari.dev`. Moved 2026-11-20 to `https://r.espface.manzari.dev` (`/connect/`, `/flash/`; `/r/1/` stays for devices flashed with 1.0.0, newer firmware serves the renderer from flash). The old host is the landing page, redirects these paths and serves the docs at `/docs/` |
 | 2 | Monorepo visibility | Decided: make `git.hauptstadt.monster/manzari/espFace` public (user does it) |
 | 3 | Mirror host for the Arduino library repo (`ESPFACE_MIRROR_URL`) | **Open** - GitHub, GitLab or Bitbucket, see section 2 |
 | 4 | PlatformIO account / owner name the package is published under | **Open** |
@@ -106,14 +106,14 @@ Or use the `espFace-1.0.0.tar.gz` asset of the Forgejo release. The tarball cont
 `tar tzf build/release/espFace-1.0.0.tar.gz` before publishing; a published version cannot be overwritten, only
 unpublished within the registry's grace period (`pio pkg unpublish <owner>/espFace@1.0.0`).
 
-## 4. Renderer and docs host (Coolify) **[account]**
+## 4. Renderer host (Coolify) **[account]**
 
-Host: `https://r.espface.manzari.dev`. The `server/renderer` image serves `/`, `/r/1/`, `/connect/`, `/flash/`
-and `/docs/`; setup is in `server/renderer/README.md`.
+Host: `https://r.espface.manzari.dev`. The `server/renderer` image serves `/`, `/r/1/`, `/connect/` and `/flash/`;
+setup is in `server/renderer/README.md`. Its `/docs/` redirects to the landing page host (section 5).
 
 `https://espface.manzari.dev` was the renderer host until 2026-11-20 and is the landing page now (`promo/`, its own
 Docker Compose resource with base directory `/promo`). Firmware 1.0.0 loads `https://espface.manzari.dev/r/1/app.js`,
-so the landing page redirects `/r/`, `/connect/`, `/flash/` and `/docs/` to the renderer host
+so the landing page redirects `/r/`, `/connect/` and `/flash/` to the renderer host
 (`promo/renderer-host.conf`); a landing page deploy without that redirect breaks those devices.
 
 1. Verify locally:
@@ -126,14 +126,16 @@ so the landing page redirects `/r/`, `/connect/`, `/flash/` and `/docs/` to the 
 2. In the Coolify UI: the Docker Compose resource from this repo (`/server/renderer/docker-compose.yml`), domain
    `https://r.espface.manzari.dev`, branch `main` (or the tag). Press **Deploy** (or let the git webhook do it).
    Never change the server by hand.
-3. Check `https://r.espface.manzari.dev/r/1/app.js` and the footer of the system page (renderer version), `/docs/`.
+3. Check `https://r.espface.manzari.dev/r/1/app.js` and the footer of the system page (renderer version).
    `curl -sI https://espface.manzari.dev/r/1/app.js` must answer 301 to that URL with `Access-Control-Allow-Origin: *`.
 4. `/r/1/` is frozen: read `web/RENDERER-VERSIONING.md` before any renderer change.
 
 ## 5. Docs
 
-The docs site ships inside the renderer image (step 4) at `/docs/`; the version in the nav comes from
-`docs/site/package.json`. The `espface-docs-v1.0.0.tar.gz` release asset is a static copy for other hosts.
+The docs site ships inside the landing page image (`promo/Dockerfile`, Coolify resource with base directory `/promo`)
+at `https://espface.manzari.dev/docs/`; the version in the nav comes from `docs/site/package.json`. The renderer
+host redirects its old `/docs/` there. The `espface-docs-v1.0.0.tar.gz` release asset is a static copy for other
+hosts.
 
 ## 6. Android via F-Droid **[account]**
 

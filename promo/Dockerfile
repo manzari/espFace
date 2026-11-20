@@ -1,7 +1,21 @@
 # syntax=docker/dockerfile:1
-# Landing page: this directory is the content, engine/ renders it.
+# Landing page plus the docs site. Build context is the repository root:
+# promo/ is the content, promo/engine/ renders it, docs/site/ becomes /docs/.
 # engine/ is a copy of the apppage engine at commit 81fb0e3 (its bin, config,
 # src and build files), with the Impressum citing the DDG.
+
+# Docs: the API reference is generated from the firmware headers on every build.
+FROM node:22-alpine AS docs
+WORKDIR /w/docs/site
+COPY docs/site/package.json docs/site/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY protocol/PROTOCOL.md /w/protocol/PROTOCOL.md
+COPY firmware/src/Face.h /w/firmware/src/Face.h
+COPY firmware/src/ui/Ui.h /w/firmware/src/ui/Ui.h
+COPY firmware/README.md /w/firmware/README.md
+COPY web/src/icons.json /w/web/src/icons.json
+COPY docs/site .
+RUN npm run build
 
 FROM ruby:3.2-alpine AS builder
 
@@ -9,18 +23,18 @@ RUN apk add --no-cache build-base ca-certificates curl git jq nodejs npm
 
 WORKDIR /site
 
-COPY engine/Gemfile engine/Gemfile.lock ./
+COPY promo/engine/Gemfile promo/engine/Gemfile.lock ./
 RUN bundle install
 
-COPY engine/package.json engine/package-lock.json ./
+COPY promo/engine/package.json promo/engine/package-lock.json ./
 RUN npm ci --ignore-scripts
 
-COPY engine/ .
+COPY promo/engine/ .
 
 # Legal pages come from the engrossify API. This layer depends only on the
 # engine and the two files below, so edits to texts and images do not render
 # them again.
-COPY _config.yml engrossify.yaml /project/
+COPY promo/_config.yml promo/engrossify.yaml /project/
 ARG ENGROSSIFY_URL=https://legal.guestlist.ink
 ARG LEGAL_RENDER_VERSION=1
 # Local builds only: placeholder legal pages instead of failing without the key.
@@ -39,11 +53,11 @@ RUN --mount=type=secret,id=engrossify_api_key \
         sh bin/render-legal.sh /project; \
     fi
 
-COPY brand.css /project/
-COPY i18n /project/i18n
-COPY images /project/images
+COPY promo/brand.css /project/
+COPY promo/i18n /project/i18n
+COPY promo/images /project/images
 # Optional webfonts for brand.css: the pattern matches nothing until promo/fonts exists.
-COPY font[s] /project/fonts
+COPY promo/font[s] /project/fonts
 RUN sh bin/apply-content.sh /project
 
 RUN mkdir -p src/assets/css/vendor/fontawesome src/assets/fonts/fontawesome src/assets/fonts/inter && \
@@ -57,13 +71,21 @@ RUN bundle exec jekyll build --source src && \
 FROM nginx:alpine
 
 COPY --from=builder /site/_site /usr/share/nginx/html
+COPY --from=docs /w/docs/site/.vitepress/dist /usr/share/nginx/html/docs
 COPY --from=builder /site/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=builder /site/nginx-security-headers.conf /etc/nginx/snippets/security-headers.conf
 
-# This host used to be the renderer host. renderer-host.conf keeps the old paths
-# answering; it goes into the engine's server block, whose last line closes it.
-COPY renderer-host.conf /etc/nginx/snippets/renderer-host.conf
-RUN sed -i '$ s|^}$|    include /etc/nginx/snippets/renderer-host.conf;\n}|' /etc/nginx/conf.d/default.conf && \
+# docs.conf serves /docs/; renderer-host.conf keeps the paths of the old renderer
+# host answering. Both go into the engine's server block, whose last line closes it.
+# VitePress pages need inline scripts and styles, so they get the engine's headers
+# with a wider CSP.
+COPY promo/docs.conf promo/renderer-host.conf /etc/nginx/snippets/
+RUN sed -e "s/style-src 'self'/style-src 'self' 'unsafe-inline'/" \
+        -e "s/script-src 'self'/script-src 'self' 'unsafe-inline'/" \
+        /etc/nginx/snippets/security-headers.conf > /etc/nginx/snippets/docs-security-headers.conf && \
+    [ "$(grep -o "'unsafe-inline'" /etc/nginx/snippets/docs-security-headers.conf | wc -l)" = 2 ] && \
+    sed -i '$ s|^}$|    include /etc/nginx/snippets/docs.conf;\n    include /etc/nginx/snippets/renderer-host.conf;\n}|' /etc/nginx/conf.d/default.conf && \
+    grep -q docs.conf /etc/nginx/conf.d/default.conf && \
     grep -q renderer-host.conf /etc/nginx/conf.d/default.conf && \
     nginx -t
 

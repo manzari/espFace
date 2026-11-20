@@ -84,4 +84,4 @@ Clients with the `pin` capability can change the PIN (`pin.set`, 4 to 32 charact
 
 ## Flash page
 
-The hosted site has a WebSerial page at [/flash/](/flash/) that writes a `.bin` to a connected board with esptool-js and offers a serial monitor. It works in Chromium browsers over https only and is a convenience, not a requirement.
+The renderer host has a WebSerial page at [r.espface.manzari.dev/flash/](https://r.espface.manzari.dev/flash/) that writes a `.bin` to a connected board with esptool-js and offers a serial monitor. It works in Chromium browsers over https only and is a convenience, not a requirement.

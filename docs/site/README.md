@@ -1,6 +1,6 @@
 # espFace docs site
 
-VitePress 1.6.4, built in Docker, served under `/docs/` by the renderer image (`server/renderer/Dockerfile`, one Coolify service for renderer + flash page + docs). Nothing is installed on the host.
+VitePress 1.6.4, built in Docker, served at `https://espface.manzari.dev/docs/` by the landing page image (`promo/Dockerfile`, which builds this site in its own stage; `promo/docs.conf` is the nginx part). Nothing is installed on the host.
 
 ```
 docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/w -w /w/docs/site node:22-alpine npm ci

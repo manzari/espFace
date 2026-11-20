@@ -19,16 +19,16 @@ The device serves a roughly 2 KB bootstrap page at `/` (and for the captive-port
 
 ## Versioned URLs
 
-The hosted site serves the bundle at `/r/<major>/`, today `/r/1/app.js` and `/r/1/app.css`, with immutable caching and CORS `*`. Firmware 1.0.0 loads the renderer from there; newer firmware serves the same path itself. A breaking change goes to `/r/2/` while `/r/1/` stays for old firmware. The protocol major in `hello` selects the path.
+The renderer host `https://r.espface.manzari.dev` serves the bundle at `/r/<major>/`, today `/r/1/app.js` and `/r/1/app.css`, with immutable caching and CORS `*`. Firmware 1.0.0 loads the renderer from there; newer firmware serves the same path itself. A breaking change goes to `/r/2/` while `/r/1/` stays for old firmware. The protocol major in `hello` selects the path.
 
-Other URLs of the hosted site:
+Other URLs of that host:
 
 | URL | Purpose |
 |---|---|
 | `/` | Landing page |
 | `/connect/?host=<host:port>` | Opens the renderer against a device. The old `/?host=` redirects here |
 | `/flash/` | WebSerial flash page |
-| `/docs/` | This documentation |
+| `/docs/` | Redirects to this documentation on `https://espface.manzari.dev/docs/` |
 | `/healthz` | Health check, answers `ok` |
 
 ## Settings and storage

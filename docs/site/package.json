@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "espFace documentation site (VitePress), served under /docs/ by server/renderer",
+  "description": "espFace documentation site (VitePress), served under /docs/ by the landing page image (promo/)",
   "scripts": {
     "gen": "node scripts/gen-api.mjs && node scripts/prepare.mjs",
     "dev": "npm run gen && vitepress dev --host 0.0.0.0",

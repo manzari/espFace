@@ -3,9 +3,10 @@ import { defineConfig } from "vitepress";
 
 const VERSION = (JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { version: string }).version;
 const REPO = "https://git.hauptstadt.monster/manzari/espFace";
+const RENDERER = "https://r.espface.manzari.dev";
 const GIT_ICON = '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M6 3a3 3 0 0 0-1 5.83v6.34A3 3 0 1 0 7 15.17V13a3 3 0 0 1 3-3h4a5 5 0 0 0 5-5V8.83a3 3 0 1 0-2 0V5a3 3 0 0 1-3 3h-4a4.98 4.98 0 0 0-3 1V8.83A3 3 0 0 0 6 3z"/></svg>';
 
-// Served from the renderer host under /docs/ (server/renderer/nginx.conf).
+// Served by the landing page image under /docs/ (promo/Dockerfile, promo/docs.conf).
 export default defineConfig({
   title: "espFace",
   description: "An ESP32 describes its control UI in a few lines of Arduino code; native apps and a web renderer draw it.",
@@ -13,7 +14,7 @@ export default defineConfig({
   lang: "en",
   lastUpdated: false,
   cleanUrls: false,
-  ignoreDeadLinks: [/^https?:\/\/localhost/, /^\/flash/, /^\/connect/],
+  ignoreDeadLinks: [/^https?:\/\/localhost/],
   head: [["link", { rel: "icon", href: "/docs/favicon.svg" }]],
   themeConfig: {
     nav: [
@@ -21,7 +22,7 @@ export default defineConfig({
       { text: "Widgets", link: "/guide/widgets" },
       { text: "API", link: "/reference/espface" },
       { text: "Protocol", link: "/protocol/" },
-      { text: "Flash", link: "/flash/", target: "_self" },
+      { text: "Flash", link: `${RENDERER}/flash/` },
       { text: `v${VERSION}`, link: `${REPO}/src/branch/main/CHANGELOG.md` },
     ],
     sidebar: [

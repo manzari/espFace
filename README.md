@@ -8,9 +8,9 @@ tools/fake-device/  Node reference implementation of a device    (phase 0, done;
 firmware/           Arduino library                              (phases 1, 1b, 4, 5, done)
 web/                TypeScript renderer                          (phases 2, 4, 6, done)
 apps/mobile/        Flutter app                                  (phases 3, 5, 6, done)
-server/renderer/    nginx image: renderer + flash page + docs    (Coolify)
+server/renderer/    nginx image: renderer + flash page           (Coolify)
 docs/site/          VitePress docs site                          (phase 6, done)
-promo/              landing page for the app                     (Coolify)
+promo/              landing page for the app, serves the docs    (Coolify)
 docker/             build and run images
 ```
 
@@ -23,14 +23,14 @@ docker run --rm -v "$PWD/protocol":/w -w /w node:22-alpine sh -c "npm install &&
 docker build -f docker/fake-device.Dockerfile -t espface-fake . && docker run --rm -p 18080:8080 espface-fake --pin=1234
 # docs site
 docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/w -w /w/docs/site node:22-alpine sh -c "npm ci && npm run build"
-# renderer + flash + docs image (what Coolify deploys)
-docker build -f server/renderer/Dockerfile -t espface-renderer . && docker run --rm -p 8081:80 espface-renderer   # http://localhost:8081/docs/
-# landing page preview on http://localhost:8888 (placeholder privacy policy and terms)
-docker build --build-arg ALLOW_PLACEHOLDER_LEGAL=1 -t espface-promo promo && docker run --rm -p 8888:80 espface-promo
+# renderer + flash image (what Coolify deploys at r.espface.manzari.dev)
+docker build -f server/renderer/Dockerfile -t espface-renderer . && docker run --rm -p 8081:80 espface-renderer   # http://localhost:8081/
+# landing page + docs preview on http://localhost:8888 and /docs/ (placeholder privacy policy and terms)
+docker build --build-arg ALLOW_PLACEHOLDER_LEGAL=1 -f promo/Dockerfile -t espface-promo . && docker run --rm -p 8888:80 espface-promo
 ```
 
 ## Landing page
 
-`promo/` is the landing page at `https://espface.manzari.dev`, built by the apppage engine, a copy of which is in `promo/engine`: texts in `promo/i18n/en.yml`, links and Impressum data in `promo/_config.yml`, colours in `promo/brand.css`, and the privacy policy and terms from `promo/engrossify.yaml`. `promo/compose.yaml` is the Coolify deployment (base directory `/promo`) and names the one secret its build needs. The renderer, the flash page and the docs are on `https://r.espface.manzari.dev`; `promo/renderer-host.conf` redirects their old paths on the landing page host, which firmware 1.0.0 depends on for `/r/1/`.
+`promo/` is the landing page at `https://espface.manzari.dev`, built by the apppage engine, a copy of which is in `promo/engine`: texts in `promo/i18n/en.yml`, links and Impressum data in `promo/_config.yml`, colours in `promo/brand.css`, and the privacy policy and terms from `promo/engrossify.yaml`. `promo/compose.yaml` is the Coolify deployment (base directory `/promo`, build context the repository root) and names the one secret its build needs. The same image builds the docs site from `docs/site` and serves it at `https://espface.manzari.dev/docs/` (`promo/docs.conf`). The renderer and the flash page are on `https://r.espface.manzari.dev`; `promo/renderer-host.conf` redirects their old paths on the landing page host, which firmware 1.0.0 depends on for `/r/1/`.
 
 The images in `promo/images` are generated: `apps/mobile/scripts/promo-shots.sh` renders the app's screens in widget tests, `web/scripts/promo-shots.sh` the renderer in a desktop browser.

@@ -131,7 +131,7 @@ For official F-Droid later: the same yml becomes the base of a `fdroiddata` merg
 scripts/screenshots.sh     # runs the test with ESPFACE_SCREENSHOTS=1, then strips alpha
 ```
 
-Privacy policy: <https://r.espface.manzari.dev/docs/guide/privacy> (`docs/site/guide/privacy.md`).
+Privacy policy: <https://espface.manzari.dev/docs/guide/privacy> (`docs/site/guide/privacy.md`).
 
 ## Google Play (deferred)
 

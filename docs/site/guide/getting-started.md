@@ -85,7 +85,7 @@ What happens here:
 
 - **Arduino IDE**: Upload as usual.
 - **PlatformIO**: `pio run -t upload`.
-- **Browser**: the hosted [flash page](/flash/) writes a merged `.bin` over WebSerial. It needs a Chromium browser over https and is meant for blank boards or release images.
+- **Browser**: the hosted [flash page](https://r.espface.manzari.dev/flash/) writes a merged `.bin` over WebSerial. It needs a Chromium browser over https and is meant for blank boards or release images.
 
 ## Opening the UI
 

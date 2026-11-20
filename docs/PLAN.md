@@ -333,7 +333,7 @@ Phases 2 and 3 can run in parallel with 1 thanks to the fake device.
 - **Cloud relay later**: Transport abstraction on both ends + device `id` + token design are relay-compatible; relay will add a `RelayTransport` without protocol changes.
 
 ## 10. Open items to settle before coding
-1. Decided 2026-10-14: renderer host `https://espface.manzari.dev` (firmware default `ESPFACE_RENDERER_HOST` in `firmware/src/web/bootstrap.h`), served by the `server/renderer` image on Coolify. Moved 2026-11-20 to `https://r.espface.manzari.dev`; the old host is the landing page and redirects the renderer's paths.
+1. Decided 2026-10-14: renderer host `https://espface.manzari.dev` (firmware default `ESPFACE_RENDERER_HOST` in `firmware/src/web/bootstrap.h`), served by the `server/renderer` image on Coolify. Moved 2026-11-20 to `https://r.espface.manzari.dev`; the old host is the landing page, serves the docs at `/docs/` and redirects the renderer's paths.
 2. Decided 2026-10-12: MIT for everything; app id `dev.manzari.espFace`.
 3. Arduino library name on the registry: `espFace` checked 2026-10-14, not taken in the Library Manager index (10156 libraries, no case-insensitive match).
 4. Who owns Apple developer account / Mac for iOS builds.

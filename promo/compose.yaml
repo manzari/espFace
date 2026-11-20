@@ -1,5 +1,6 @@
 # Coolify: Docker Compose build pack, base directory /promo, this file as the
-# compose file. Set the domain on the `web` service.
+# compose file. Set the domain on the `web` service. The build context is the
+# repository root, because the image also builds the docs site (docs/site).
 #
 # Coolify lists a variable only when `environment` or `build.args` of a service
 # references it, so every variable this file reads is named under `args`.
@@ -8,7 +9,8 @@
 services:
   web:
     build:
-      context: .
+      context: ..
+      dockerfile: promo/Dockerfile
       args:
         ENGROSSIFY_URL: "${ENGROSSIFY_URL:-https://legal.guestlist.ink}"
         # Bump to render the legal pages again when only the remote templates changed.

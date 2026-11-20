@@ -1,15 +1,15 @@
 # Renderer hosting
 
-Static nginx image serving `web/dist` plus the docs site: the renderer bundle at `/r/1/app.js` + `/r/1/app.css` (immutable cache, CORS `*`), a landing page at `/` (links to docs, flash page and a connect form), `/connect/?host=` to open a device, `/flash/`, a WebSerial flash page (esptool-js from jsdelivr, Chromium only; Web Serial needs the https origin Traefik provides), and `/docs/`, the VitePress site from `docs/site/` (built in its own stage of the Dockerfile, so the API reference is regenerated from the firmware headers on every deploy).
+Static nginx image serving `web/dist`: the renderer bundle at `/r/1/app.js` + `/r/1/app.css` (immutable cache, CORS `*`), a landing page at `/` (links to docs, flash page and a connect form), `/connect/?host=` to open a device, `/flash/`, a WebSerial flash page (esptool-js from jsdelivr, Chromium only; Web Serial needs the https origin Traefik provides). The docs site was part of this image until 2026-11-20 and is built into the landing page image now (`promo/Dockerfile`); `/docs/` redirects to `https://espface.manzari.dev/docs/`.
 
-Devices serve the renderer from their own flash since firmware 1.0.x; devices flashed with 1.0.0 load `https://espface.manzari.dev/r/1/app.js`, the host this image had until 2026-11-20. That host is the landing page now and redirects `/r/`, `/connect/`, `/flash/` and `/docs/` here (`promo/renderer-host.conf`). Breaking renderer changes go to `/r/2/`; `/r/1/` stays for old firmware.
+Devices serve the renderer from their own flash since firmware 1.0.x; devices flashed with 1.0.0 load `https://espface.manzari.dev/r/1/app.js`, the host this image had until 2026-11-20. That host is the landing page now and redirects `/r/`, `/connect/` and `/flash/` here (`promo/renderer-host.conf`). Breaking renderer changes go to `/r/2/`; `/r/1/` stays for old firmware.
 
 ## Local
 
 ```
 docker build -f server/renderer/Dockerfile -t espface-renderer .      # from the repository root
 docker run --rm -p 8081:80 espface-renderer
-# http://localhost:8081/connect/?host=localhost:18080   (with the fake device running), http://localhost:8081/docs/
+# http://localhost:8081/connect/?host=localhost:18080   (with the fake device running)
 ```
 
 ## Coolify

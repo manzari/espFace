@@ -1,4 +1,5 @@
-# Builds the web renderer and the docs site and serves both with nginx. Build context is the repository root.
+# Builds the web renderer and serves it with nginx. Build context is the repository root.
+# The docs site is part of the landing page image (promo/Dockerfile).
 FROM node:22-alpine AS build
 WORKDIR /w/web
 COPY web/package.json web/package-lock.json ./
@@ -7,19 +8,6 @@ COPY protocol /w/protocol
 COPY web .
 RUN npm run build
 
-FROM node:22-alpine AS docs
-WORKDIR /w/docs/site
-COPY docs/site/package.json docs/site/package-lock.json ./
-RUN npm ci --no-audit --no-fund
-COPY protocol/PROTOCOL.md /w/protocol/PROTOCOL.md
-COPY firmware/src/Face.h /w/firmware/src/Face.h
-COPY firmware/src/ui/Ui.h /w/firmware/src/ui/Ui.h
-COPY firmware/README.md /w/firmware/README.md
-COPY web/src/icons.json /w/web/src/icons.json
-COPY docs/site .
-RUN npm run build
-
-# Renderer only, without the docs build (web/scripts/widget-shots.sh renders the docs screenshots against it).
 # Slim variant: no curl, libxslt or image libraries to keep patched. The upgrade takes Alpine fixes newer than the base.
 FROM nginx:1.31-alpine-slim AS web
 RUN apk upgrade --no-cache
@@ -27,6 +15,3 @@ COPY server/renderer/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /w/web/dist /usr/share/nginx/html
 EXPOSE 80
 HEALTHCHECK --interval=10s --timeout=3s --retries=3 CMD wget -qO- http://127.0.0.1/healthz || exit 1
-
-FROM web
-COPY --from=docs /w/docs/site/.vitepress/dist /usr/share/nginx/html/docs
