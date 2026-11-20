@@ -1,0 +1,11 @@
+---
+layout: null
+# Liquid-templated: one Disallow block per language in _config.yml.
+---
+User-agent: *
+{%- for lang in site.languages %}
+{%- if lang == site.languages[0] %}{% assign p = '/' %}{% else %}{% assign p = '/' | append: lang | append: '/' %}{% endif %}
+Disallow: {{ p }}impressum/
+Disallow: {{ p }}terms/
+Disallow: {{ p }}privacy/
+{%- endfor %}

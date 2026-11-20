@@ -1,0 +1,28 @@
+# =============================================================================
+# Engine build settings — identical for every project.
+# =============================================================================
+# bin/apply-content.sh concatenates this file with the project's
+# content/<name>/_config.yml to produce src/_config.yml. Keep only
+# non-project keys here; anything a project would ever change belongs in
+# its own _config.yml.
+
+markdown: kramdown
+
+plugins:
+  - jekyll-seo-tag
+
+# Jekyll skips dot-directories unless listed here.
+include:
+  - .well-known
+
+collections:
+  pages:
+    output: true
+    permalink: /:name/
+
+defaults:
+  - scope:
+      path: ""
+      type: "pages"
+    values:
+      layout: "page"

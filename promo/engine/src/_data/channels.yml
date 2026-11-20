@@ -1,0 +1,19 @@
+# Download channels rendered by _includes/download_buttons.html.
+# url_key: the _config.yml key holding the link; key: the i18n key under
+# store_buttons.* and cta_buttons.*.
+- key: webapp
+  url_key: web_app_url
+  icon: fas fa-globe
+  cta_class: is-web
+- key: appstore
+  url_key: app_store_url
+  icon: fab fa-apple
+  cta_class: is-ios
+- key: playstore
+  url_key: play_store_url
+  icon: fab fa-google-play
+  cta_class: is-android
+- key: fdroid
+  url_key: fdroid_url
+  icon: fab fa-android
+  cta_class: is-fdroid

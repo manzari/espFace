@@ -1,0 +1,191 @@
+{%- include lang_vars.html -%}
+<!-- Navbar -->
+<nav class="navbar" role="navigation" aria-label="main navigation">
+  <div class="container">
+    <div class="navbar-brand">
+      <a class="navbar-item" href="{{ lang_root }}">
+        {{ site.title }}
+      </a>
+      <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="navMenu">
+        <span aria-hidden="true"></span>
+        <span aria-hidden="true"></span>
+        <span aria-hidden="true"></span>
+      </a>
+    </div>
+    <div id="navMenu" class="navbar-menu">
+      <div class="navbar-end">
+        <a class="navbar-item" href="#features">{{ t.nav.features }}</a>
+        <a class="navbar-item" href="#screenshots">{{ t.nav.screenshots }}</a>
+        {%- if t.webapp %}
+        <a class="navbar-item" href="#webapp">{{ t.nav.webapp }}</a>
+        {%- endif %}
+        <a class="navbar-item" href="#download">{{ t.nav.download }}</a>
+        {% include lang_switcher.html class="navbar-item navbar-lang" %}
+      </div>
+    </div>
+  </div>
+</nav>
+
+<!-- Hero Section -->
+<section class="hero-section">
+  <div class="hero-content">
+    <div class="container">
+      <div class="columns is-vcentered">
+        <div class="column is-5">
+          <h1 class="hero-title">{{ t.hero.title }}</h1>
+          <p class="hero-subtitle">{{ t.hero.subtitle }}</p>
+          <div class="store-buttons">
+            {% include download_buttons.html style="store" %}
+          </div>
+        </div>
+        <div class="column is-7">
+          <div class="phone-mockup-container">
+            {%- if t.hero.web_screenshot %}
+            <div class="browser-mockup hero-browser">
+              <div class="browser-bar">
+                <span class="browser-dot"></span><span class="browser-dot"></span><span class="browser-dot"></span>
+              </div>
+              <div class="browser-screen">
+                {% if t.hero.web_screenshot.image %}
+                <img src="{{ t.hero.web_screenshot.image }}" alt="{{ t.hero.web_screenshot.label }}" width="1400" height="875" decoding="async">
+                {% else %}
+                <div class="screenshot-placeholder">
+                  <i class="{{ t.hero.web_screenshot.icon }}"></i>
+                  <p>{{ t.hero.web_screenshot.label }}</p>
+                </div>
+                {% endif %}
+              </div>
+            </div>
+            {%- endif %}
+            <div class="phone-mockup">
+              <div class="phone-frame">
+                <div class="phone-screen">
+                  {% if t.hero.screenshot_1.image %}
+                  <img src="{{ t.hero.screenshot_1.image }}" alt="{{ t.hero.screenshot_1.label }}" width="720" height="1616" fetchpriority="high">
+                  {% else %}
+                  <div class="screenshot-placeholder">
+                    <i class="{{ t.hero.screenshot_1.icon }}"></i>
+                    <p>{{ t.hero.screenshot_1.label }}</p>
+                  </div>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+            <div class="phone-mockup secondary">
+              <div class="phone-frame">
+                <div class="phone-screen">
+                  {% if t.hero.screenshot_2.image %}
+                  <img src="{{ t.hero.screenshot_2.image }}" alt="{{ t.hero.screenshot_2.label }}" width="720" height="1616" decoding="async">
+                  {% else %}
+                  <div class="screenshot-placeholder">
+                    <i class="{{ t.hero.screenshot_2.icon }}"></i>
+                    <p>{{ t.hero.screenshot_2.label }}</p>
+                  </div>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Features Section -->
+<section id="features" class="features-section">
+  <div class="container">
+    <div class="has-text-centered">
+      <span class="section-tag">{{ t.features.tag }}</span>
+      <h2 class="section-title">{{ t.features.title }}</h2>
+      <p class="section-subtitle">{{ t.features.subtitle }}</p>
+    </div>
+    <div class="columns is-multiline">
+      {% for feature in t.features.items %}
+      <div class="column is-4">
+        <div class="feature-box">
+          <div class="feature-icon">
+            <i class="{{ feature.icon }}"></i>
+          </div>
+          <h3>{{ feature.title }}</h3>
+          <p>{{ feature.description }}</p>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<!-- Screenshots Section -->
+<section id="screenshots" class="screenshots-section">
+  <div class="container">
+    <div class="has-text-centered">
+      <span class="section-tag">{{ t.screenshots.tag }}</span>
+      <h2 class="section-title">{{ t.screenshots.title }}</h2>
+      <p class="section-subtitle">{{ t.screenshots.subtitle }}</p>
+    </div>
+    <div class="screenshot-gallery">
+      {% for screenshot in t.screenshots.items %}
+      <div class="screenshot-item">
+        <div class="phone-frame">
+          <div class="phone-screen">
+            {% if screenshot.image %}
+            <img src="{{ screenshot.image }}" alt="{{ screenshot.label }}" width="720" height="1616" loading="lazy" decoding="async">
+            {% else %}
+            <div class="screenshot-placeholder">
+              <i class="{{ screenshot.icon }}"></i>
+              <p>{{ screenshot.label }}</p>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+{%- if t.webapp %}
+<!-- Web App Section -->
+<section id="webapp" class="webapp-section">
+  <div class="container">
+    <div class="has-text-centered">
+      <span class="section-tag">{{ t.webapp.tag }}</span>
+      <h2 class="section-title">{{ t.webapp.title }}</h2>
+      <p class="section-subtitle">{{ t.webapp.subtitle }}</p>
+    </div>
+    <div class="webapp-gallery">
+      {% for shot in t.webapp.items %}
+      <div class="browser-item">
+        <div class="browser-bar">
+          <span class="browser-dot"></span><span class="browser-dot"></span><span class="browser-dot"></span>
+        </div>
+        <div class="browser-screen">
+          {% if shot.image %}
+          <img src="{{ shot.image }}" alt="{{ shot.label }}" width="1400" height="875" loading="lazy" decoding="async">
+          {% else %}
+          <div class="screenshot-placeholder">
+            <i class="{{ shot.icon }}"></i>
+            <p>{{ shot.label }}</p>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{%- endif %}
+
+<!-- Download CTA Section -->
+<section id="download" class="cta-section">
+  <div class="container">
+    <div class="has-text-centered cta-content">
+      <h2 class="cta-title">{{ t.cta.title }}</h2>
+      <p class="cta-subtitle">{{ t.cta.subtitle }}</p>
+      <div class="cta-buttons">
+        {% include download_buttons.html style="cta" %}
+      </div>
+    </div>
+  </div>
+</section>

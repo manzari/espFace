@@ -1,0 +1,25 @@
+{%- include lang_vars.html -%}
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" type="image/svg+xml" href="{{ '/assets/images/favicon.svg' | relative_url }}">
+
+{%- if t.meta.description and page.description == nil %}
+<meta name="description" content="{{ t.meta.description }}">
+{%- endif %}
+
+<!-- Inter Font (local) -->
+<link rel="stylesheet" href="{{ '/assets/css/inter.css' | relative_url }}">
+
+<!-- Bulma CSS (local) -->
+<link rel="stylesheet" href="{{ '/assets/css/vendor/bulma.min.css' | relative_url }}">
+
+<!-- Font Awesome (local) -->
+<link rel="stylesheet" href="{{ '/assets/css/vendor/fontawesome/all.min.css' | relative_url }}">
+
+<!-- Custom CSS -->
+<link rel="stylesheet" href="{{ '/assets/css/custom.css' | relative_url }}">
+
+<!-- Per-project overrides (generated from content/<name>/brand.css) -->
+<link rel="stylesheet" href="{{ '/assets/css/brand.css' | relative_url }}">
+
+{% seo %}

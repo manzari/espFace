@@ -1,0 +1,49 @@
+# Template — bin/apply-content.sh expands the @@…@@ markers from languages:
+# in the project config and writes nginx.conf. Do not edit nginx.conf.
+server {
+    listen 80;
+    server_name localhost;
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # Enable gzip compression
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_types
+        text/plain
+        text/css
+        text/xml
+        text/javascript
+        application/json
+        application/javascript
+        application/xml
+        application/xml+rss
+        font/woff
+        font/woff2
+        image/svg+xml;
+
+    # Security headers (shared snippet — re-included in every location that
+    # sets its own add_header, since nginx drops inherited headers there)
+    include /etc/nginx/snippets/security-headers.conf;
+
+    location / {
+        try_files $uri $uri/ $uri.html =404;
+    }
+
+    # Non-default languages get their own 404
+@@LANG_LOCATIONS@@
+    # Cache static assets
+    location ~* \.(css|js|jpg|jpeg|png|gif|ico|svg|webp|avif|woff|woff2|ttf|eot)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        include /etc/nginx/snippets/security-headers.conf;
+    }
+
+    # Custom 404 pages
+    error_page 404 /404.html;
+    location = /404.html {
+        internal;
+    }
+@@LANG_404_INTERNAL@@
+}

@@ -1,0 +1,55 @@
+{%- include lang_vars.html -%}
+<!DOCTYPE html>
+<html lang="{{ current_lang }}">
+<head>
+  {% include head.html %}
+</head>
+<body>
+  <!-- Navbar (fixed for legal pages) -->
+  <nav class="navbar is-fixed-top has-shadow" role="navigation" aria-label="main navigation">
+    <div class="container">
+      <div class="navbar-brand">
+        <a class="navbar-item navbar-item-dark" href="{{ lang_root }}">
+          {{ site.title }}
+        </a>
+        <a role="button" class="navbar-burger navbar-burger-dark" aria-label="menu" aria-expanded="false" data-target="navMenu">
+          <span aria-hidden="true"></span>
+          <span aria-hidden="true"></span>
+          <span aria-hidden="true"></span>
+        </a>
+      </div>
+      <div id="navMenu" class="navbar-menu">
+        <div class="navbar-end">
+          <a class="navbar-item navbar-item-dark" href="{{ lang_root }}#features">{{ t.nav.features }}</a>
+          <a class="navbar-item navbar-item-dark" href="{{ lang_root }}#screenshots">{{ t.nav.screenshots }}</a>
+          <a class="navbar-item navbar-item-dark" href="{{ lang_root }}#download">{{ t.nav.download }}</a>
+          {% include lang_switcher.html class="navbar-item navbar-item-dark navbar-lang" %}
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Page Content -->
+  <section class="section page-content">
+    <div class="container">
+      <div class="columns is-centered">
+        <div class="column is-8">
+          {% unless page.hide_page_title %}
+          <h1 class="title is-1 page-title">{{ page.title }}</h1>
+          {% endunless %}
+          {% if page.last_updated %}
+          <p class="subtitle is-6 has-text-grey">{{ t.page.last_updated }} {{ page.last_updated }}</p>
+          {% endif %}
+          <div class="content legal-content">
+            {{ content }}
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  {% include footer.html %}
+
+  <script src="{{ '/assets/js/main.js' | relative_url }}"></script>
+</body>
+</html>

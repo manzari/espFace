@@ -1,0 +1,25 @@
+{%- include lang_vars.html -%}
+<footer class="footer-section">
+  <div class="container">
+    <div class="columns is-vcentered">
+      <div class="column">
+        <div class="footer-logo">{{ site.title }}</div>
+        <p class="footer-text">{{ t.meta.tagline }}</p>
+      </div>
+      <div class="column">
+        <div class="footer-links">
+          <a href="{{ lang_root }}privacy/">{{ t.footer.privacy }}</a>
+          <a href="{{ lang_root }}terms/">{{ t.footer.terms }}</a>
+          <a href="/impressum/">{{ t.footer.impressum }}</a>
+          <a href="mailto:{{ site.contact_email }}">{{ t.footer.contact }}</a>
+        </div>
+        <div class="footer-lang">
+          {%- include lang_switcher.html show_current=true -%}
+        </div>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p>&copy; {{ 'now' | date: '%Y' }} {{ site.title }}. {{ t.footer.rights }}</p>
+    </div>
+  </div>
+</footer>

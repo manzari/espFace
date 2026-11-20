@@ -1,5 +1,6 @@
 // Store screenshots: renders the real app against a scripted device (demo UI of tools/fake-device) and writes
 // 1080x1920 PNGs to fastlane/metadata/android/en-US/images/phoneScreenshots when ESPFACE_SCREENSHOTS=1.
+// ESPFACE_PROMO_SHOTS=1 writes every scene in both themes at 1080x2424 to build/promo-shots (scripts/promo-shots.sh).
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
@@ -21,8 +22,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'support/fake_transport.dart';
 import 'support/vectors.dart';
 
-const _out = 'fastlane/metadata/android/en-US/images/phoneScreenshots';
-final _write = Platform.environment['ESPFACE_SCREENSHOTS'] == '1';
+final _promo = Platform.environment['ESPFACE_PROMO_SHOTS'] == '1';
+final _out = _promo ? 'build/promo-shots' : 'fastlane/metadata/android/en-US/images/phoneScreenshots';
+final _size = _promo ? const Size(1080, 2424) : const Size(1080, 1920);
+final _write = _promo || Platform.environment['ESPFACE_SCREENSHOTS'] == '1';
 final _t0 = DateTime.utc(2026, 10, 1, 9, 30).millisecondsSinceEpoch;
 
 final _demoUi = <Map<String, dynamic>>[
@@ -121,9 +124,11 @@ void main() {
   setUpAll(_loadFonts);
 
   Future<ProviderContainer> boot(WidgetTester t, {required bool dark, bool pin = false}) async {
-    t.view.physicalSize = const Size(1080, 1920);
+    t.view.physicalSize = _size;
     t.view.devicePixelRatio = 2.625;
     FocusManager.instance.highlightStrategy = FocusHighlightStrategy.alwaysTouch;
+    // Tests paint shadows as black outlines; the promo set wants the real ones. finish() restores the default.
+    debugDisableShadows = !_promo;
     t.platformDispatcher.platformBrightnessTestValue = dark ? Brightness.dark : Brightness.light;
     addTearDown(t.view.reset);
     addTearDown(t.platformDispatcher.clearPlatformBrightnessTestValue);
@@ -171,70 +176,61 @@ void main() {
   }
 
   Future<void> finish(WidgetTester t, ProviderContainer c) async {
+    debugDisableShadows = true;
     await t.pumpWidget(const SizedBox());
     await t.pump(const Duration(seconds: 1));
     c.dispose();
   }
 
-  for (final dark in [false, true]) {
-    final mode = dark ? 'dark' : 'light';
-    testWidgets('device list ($mode)', (t) async {
-      final c = await boot(t, dark: dark);
-      expect(find.text('Greenhouse'), findsOneWidget);
-      await shot(t, '${dark ? 5 : 1}_devices_$mode');
-      await finish(t, c);
-    });
+  Future<void> open(WidgetTester t, ProviderContainer c, String key) async {
+    await go(t, c, '/d/${Uri.encodeComponent(key)}');
+    await t.pump(const Duration(milliseconds: 300));
   }
 
-  testWidgets('device page with gauge, chart and controls (light), scrolled controls (dark)', (t) async {
-    final c = await boot(t, dark: false);
-    await go(t, c, '/d/${Uri.encodeComponent('h:10.0.0.5')}');
-    await t.pump(const Duration(milliseconds: 300));
-    expect(find.text('Temperature'), findsOneWidget);
-    expect(find.text('Temp history'), findsOneWidget);
-    await shot(t, '2_device_light');
-    await finish(t, c);
-  });
+  // Scene name -> (store file per theme, steps); the store set keeps one theme per scene, the promo set takes both.
+  final scenes = <String, (Map<bool, String>, Future<void> Function(WidgetTester, ProviderContainer))>{
+    'devices': ({false: '1_devices_light', true: '5_devices_dark'}, (t, c) async {
+      expect(find.text('Greenhouse'), findsOneWidget);
+    }),
+    'device': ({false: '2_device_light'}, (t, c) async {
+      await open(t, c, 'h:10.0.0.5');
+      expect(find.text('Temperature'), findsOneWidget);
+      expect(find.text('Temp history'), findsOneWidget);
+    }),
+    'controls': ({true: '6_controls_dark'}, (t, c) async {
+      await open(t, c, 'h:10.0.0.5');
+      await t.scrollUntilVisible(find.text('Reset error'), 300, scrollable: _pageScroll);
+      expect(find.text('Pump'), findsWidgets);
+    }),
+    'inputs': ({false: '3_inputs_light'}, (t, c) async {
+      await open(t, c, 'h:10.0.0.5');
+      await t.tap(find.text('I/O').last);
+      await t.pump(const Duration(milliseconds: 400));
+      expect(find.text('Valve'), findsOneWidget);
+    }),
+    'system': ({true: '7_system_dark'}, (t, c) async {
+      await open(t, c, 'h:10.0.0.5');
+      await go(t, c, '/d/${Uri.encodeComponent('h:10.0.0.5')}/system');
+      await t.pump(const Duration(milliseconds: 300));
+      expect(find.text('ESP32-S3'), findsWidgets);
+    }),
+    'pin': ({false: '4_pin_light'}, (t, c) async {
+      await open(t, c, 'h:10.0.0.12');
+      expect(find.textContaining('asks for a PIN'), findsOneWidget);
+      await t.enterText(find.byType(TextField), '1234');
+    }),
+  };
 
-  testWidgets('device controls (dark)', (t) async {
-    final c = await boot(t, dark: true);
-    await go(t, c, '/d/${Uri.encodeComponent('h:10.0.0.5')}');
-    await t.pump(const Duration(milliseconds: 300));
-    await t.scrollUntilVisible(find.text('Reset error'), 300, scrollable: _pageScroll);
-    expect(find.text('Pump'), findsWidgets);
-    await shot(t, '6_controls_dark');
-    await finish(t, c);
-  });
-
-  testWidgets('inputs page (light)', (t) async {
-    final c = await boot(t, dark: false);
-    await go(t, c, '/d/${Uri.encodeComponent('h:10.0.0.5')}');
-    await t.pump(const Duration(milliseconds: 300));
-    await t.tap(find.text('I/O').last);
-    await t.pump(const Duration(milliseconds: 400));
-    expect(find.text('Valve'), findsOneWidget);
-    await shot(t, '3_inputs_light');
-    await finish(t, c);
-  });
-
-  testWidgets('system page (dark)', (t) async {
-    final c = await boot(t, dark: true);
-    await go(t, c, '/d/${Uri.encodeComponent('h:10.0.0.5')}');
-    await t.pump(const Duration(milliseconds: 300));
-    await go(t, c, '/d/${Uri.encodeComponent('h:10.0.0.5')}/system');
-    await t.pump(const Duration(milliseconds: 300));
-    expect(find.text('ESP32-S3'), findsWidgets);
-    await shot(t, '7_system_dark');
-    await finish(t, c);
-  });
-
-  testWidgets('PIN pairing dialog (light)', (t) async {
-    final c = await boot(t, dark: false);
-    await go(t, c, '/d/${Uri.encodeComponent('h:10.0.0.12')}');
-    await t.pump(const Duration(milliseconds: 300));
-    expect(find.textContaining('asks for a PIN'), findsOneWidget);
-    await t.enterText(find.byType(TextField), '1234');
-    await shot(t, '4_pin_light');
-    await finish(t, c);
-  });
+  for (final MapEntry(key: scene, value: (store, steps)) in scenes.entries) {
+    for (final dark in [false, true]) {
+      if (!_promo && !store.containsKey(dark)) continue;
+      final mode = dark ? 'dark' : 'light';
+      testWidgets('$scene ($mode)', (t) async {
+        final c = await boot(t, dark: dark);
+        await steps(t, c);
+        await shot(t, _promo ? '$scene-$mode' : store[dark]!);
+        await finish(t, c);
+      });
+    }
+  }
 }

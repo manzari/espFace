@@ -1,0 +1,135 @@
+code: en
+label: English
+short: EN
+
+meta:
+  description: espFace turns an ESP32 into an app. The firmware describes its controls in a few lines of Arduino code, and the Android app or any browser draws them. No cloud, no account.
+  tagline: A native control panel for your ESP32 devices.
+
+nav:
+  features: Features
+  screenshots: Screenshots
+  webapp: Browser
+  download: Download
+  language_switch_aria: Switch language
+
+hero:
+  title: "A native control panel for your ESP32."
+  subtitle: "Describe gauges, charts, switches and sliders in a few lines of Arduino code. The espFace app draws them as a native screen and talks straight to the device over WiFi, Bluetooth or USB."
+  screenshot_1:
+    icon: "fas fa-gauge-high"
+    label: "A boiler controller in the app: temperature gauge, history chart, tank level and pressure"
+    image: "/assets/images/phone-device-dark.jpg"
+  screenshot_2:
+    icon: "fas fa-microchip"
+    label: "The list of devices, grouped by project"
+    image: "/assets/images/phone-devices-dark.jpg"
+  web_screenshot:
+    icon: "fas fa-desktop"
+    label: "The same boiler controller in a desktop browser"
+    image: "/assets/images/web-device-light.jpg"
+
+features:
+  tag: "Features"
+  title: "The firmware is the app"
+  subtitle: "The device describes its own screen. There is no app to write, no HTML to serve by hand and no layout to maintain."
+  items:
+    - icon: "fas fa-code"
+      title: "A few lines of code"
+      description: "A sketch declares its widgets with the espFace Arduino library and gets callbacks when a value changes. Everything else, from the layout to the live updates, is handled for you."
+    - icon: "fas fa-gauge-high"
+      title: "30 widget types"
+      description: "Gauges, charts, LEDs, switches, sliders, joysticks, colour and time pickers, tables, logs, camera streams and maps, arranged in pages, groups and rows."
+    - icon: "fas fa-tower-broadcast"
+      title: "WiFi, Bluetooth, USB"
+      description: "The same screen over the local network, Bluetooth LE, Bluetooth Classic or a USB OTG cable. Devices show up via mDNS, a Bluetooth scan or a plugged-in adapter."
+    - icon: "fas fa-shield-halved"
+      title: "PIN pairing"
+      description: "A device can ask for a PIN. Pairing is a challenge-response handshake, so the PIN itself is never sent, and the session token stays in the phone's secure storage."
+    - icon: "fas fa-screwdriver-wrench"
+      title: "Setup and updates built in"
+      description: "Every device brings its system pages: WiFi provisioning, firmware updates over the air, device info, PIN change, reboot and a serial console."
+    - icon: "fas fa-eye-slash"
+      title: "No cloud, no account"
+      description: "The phone talks straight to the device. No server in between, no sign-up, no analytics and no ads. App, library and protocol are free software under the MIT license."
+
+screenshots:
+  tag: "Screenshots"
+  title: "One app for every device"
+  subtitle: "Each screen below comes from a device's firmware. The app only draws it."
+  items:
+    - icon: "fas fa-microchip"
+      label: "The list of devices, grouped by project"
+      image: "/assets/images/phone-devices-light.jpg"
+    - icon: "fas fa-gauge-high"
+      label: "A boiler controller: temperature gauge, history chart, tank level and pressure"
+      image: "/assets/images/phone-device-light.jpg"
+    - icon: "fas fa-sliders"
+      label: "Inputs: joystick, colour picker, time picker, weekday flags and a table"
+      image: "/assets/images/phone-inputs-light.jpg"
+    - icon: "fas fa-lock"
+      label: "Pairing with a device that asks for a PIN"
+      image: "/assets/images/phone-pin-light.jpg"
+    - icon: "fas fa-screwdriver-wrench"
+      label: "The system page of a device: info, WiFi and firmware update"
+      image: "/assets/images/phone-system-light.jpg"
+
+webapp:
+  tag: "In the browser"
+  title: "No app needed"
+  subtitle: "A device on WiFi also serves its screen as a web page. Open its address in any browser on your network: same widgets, same PIN pairing, nothing to install."
+  items:
+    - icon: "fas fa-gauge-high"
+      label: "The boiler controller in a desktop browser"
+      image: "/assets/images/web-device-light.jpg"
+    - icon: "fas fa-sliders"
+      label: "Switch, slider, mode select and log in a desktop browser"
+      image: "/assets/images/web-controls-light.jpg"
+
+cta:
+  title: "Get the app"
+  subtitle: "For Android 7.0 and later, from the manzari.dev F-Droid repository. Add the repository in your F-Droid client, then install espFace from there. The documentation takes you from a bare ESP32 to the first screen."
+
+store_buttons:
+  webapp:
+    small: "Library and"
+    label: "Docs"
+  appstore:
+    small: "Download on the"
+    label: "App Store"
+  playstore:
+    small: "Get it on"
+    label: "Google Play"
+  fdroid:
+    small: "Add the repo in"
+    label: "F-Droid"
+  contact:
+    small: "Questions?"
+    label: "Get in touch"
+  coming_soon:
+    small: "Stay tuned"
+    label: "Coming soon"
+
+cta_buttons:
+  webapp: "Read the docs"
+  appstore: "Download for iOS"
+  playstore: "Get it on Google Play"
+  fdroid: "Add the F-Droid repo"
+  contact: "Get in touch"
+  coming_soon: "Coming soon"
+
+footer:
+  privacy: "Privacy Policy"
+  terms: "Terms of Service"
+  impressum: "Impressum"
+  contact: "Contact"
+  rights: "Released under the MIT license."
+
+page:
+  last_updated: "Last updated:"
+
+not_found:
+  title: "Page not found"
+  heading: "This page does not exist."
+  subtitle: "The link may be old, or the address was mistyped."
+  back: "Back to the start page"

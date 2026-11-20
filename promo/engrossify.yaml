@@ -1,0 +1,111 @@
+# Tenant config for the engrossify render API; the apppage build posts it to
+# $ENGROSSIFY_URL/api/render and gets the privacy policy and the terms back.
+#
+# DRAFT: legal_check_done is false, so every render carries the review banners.
+# Have the rendered output reviewed before setting it to true.
+
+slug: espface
+name: espFace
+languages: [en]
+documents: [privacy, terms-of-service]
+audience: both
+legal_check_done: false
+
+controller:
+  name: Marco Manzari
+  legal_form: Kleingewerbe
+  address:
+    street: c/o COCENTER, Koppoldstr. 1
+    postal_code: "86551"
+    city: Aichach
+    country: DE
+  email: mail@manzari.dev
+  phone: "+49 30 55570662"
+
+supervisory_authority:
+  key: berlin
+
+site:
+  url: https://espface-app.manzari.dev
+  hosting_provider: Hetzner Online GmbH
+  hosting_country: DE
+  fonts_self_hosted: true
+
+data_flows:
+  # Static page: no cookies, no client-side storage, no third-party requests.
+  cookies:
+    enabled: false
+  hosting:
+    enabled: true
+  # Checked against apps/mobile/pubspec.yaml and docs/site/guide/privacy.md: no
+  # backend, analytics, crash reporting or ads. Add iOS once it is released.
+  local_app:
+    enabled: true
+    platforms: [Android]
+    network_use: >-
+      The app connects to the espFace devices you have added yourself: over
+      your local network, Bluetooth LE, Bluetooth Classic or a USB cable. While
+      you add a device it searches the local network (mDNS) and, if you start
+      a scan, Bluetooth for espFace devices. These connections run directly
+      between your phone and your devices; we are not involved in them. Three
+      optional features reach the internet. When a device shows a map, the app
+      loads map tiles from the OpenStreetMap tile servers, which receive your
+      IP address and the map area. When you have switched on the firmware
+      release check and tap it, the app asks the GitHub API for the latest
+      release of the repository the device names. When a device shows an image
+      or a camera stream, the app loads it from the address the device names.
+    permissions:
+      - >-
+        Network access, Wi-Fi state and multicast: to connect to devices on
+        your local network and to find them via mDNS.
+      - >-
+        Bluetooth (scan and connect): to find and connect to devices over
+        Bluetooth LE and Bluetooth Classic. On Android 12 and later the scan
+        is declared as not used for location.
+      - >-
+        Location (Android 11 and earlier only): Android requires it for any
+        Bluetooth scan on these versions. The app never reads your location.
+      - >-
+        Camera (optional): to scan a device's QR code. Images are processed on
+        the phone and are not stored.
+      - >-
+        USB host (optional): to talk to ESP32 boards plugged in with an OTG
+        cable.
+  # Served from the same host as the landing page.
+  fdroid_repo:
+    enabled: true
+    url: https://fdroid.manzari.dev/fdroid/repo
+
+# No sign-up and no backend.
+user_accounts:
+  enabled: false
+
+processors:
+  - name: Hetzner Online GmbH
+    purpose: Hosting of the landing page and the F-Droid repository (static files, server logs)
+    country: DE
+    avv_url: https://www.hetzner.com/AV/DPA_de.pdf
+
+retention:
+  server_logs_days: 14
+
+art21_objection:
+  applicable: true
+  contact: mail@manzari.dev
+
+terms:
+  service_description: >-
+    espFace is a free, open-source project (MIT license): an Arduino library
+    for ESP32 boards, an Android app and a web renderer. The firmware of a
+    device describes its control interface, and the app or a browser displays
+    it and sends the user's input back to the device, over the local network,
+    Bluetooth or a USB cable. The list of devices, the settings and the
+    session tokens issued by PIN-protected devices are stored only on the
+    user's phone. The app has no user accounts and no backend, and it sends
+    nothing to the provider. The user is responsible for the devices they
+    build and connect to, for the firmware running on them and for whatever
+    those devices control.
+  # No price and no account, so no withdrawal clause and no order step.
+  free_of_charge: true
+  governing_law: DE
+  jurisdiction: Berlin

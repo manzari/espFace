@@ -1,0 +1,35 @@
+# Coolify: Docker Compose build pack, base directory /promo, this file as the
+# compose file. Set the domain on the `web` service.
+#
+# Coolify lists a variable only when `environment` or `build.args` of a service
+# references it, so every variable this file reads is named under `args`.
+#   ENGROSSIFY_API_KEY  required, key for the legal render
+
+services:
+  web:
+    build:
+      context: .
+      args:
+        ENGROSSIFY_URL: "${ENGROSSIFY_URL:-https://legal.guestlist.ink}"
+        # Bump to render the legal pages again when only the remote templates changed.
+        LEGAL_RENDER_VERSION: "${LEGAL_RENDER_VERSION:-1}"
+        # Named only so Coolify lists it: the Dockerfile declares no ARG for it
+        # and reads it as the secret below.
+        ENGROSSIFY_API_KEY: "${ENGROSSIFY_API_KEY:?}"
+      secrets:
+        - engrossify_api_key
+    expose:
+      - "80"
+    environment:
+      - SERVICE_FQDN_WEB_80
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+secrets:
+  engrossify_api_key:
+    environment: ENGROSSIFY_API_KEY

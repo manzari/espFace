@@ -1,0 +1,61 @@
+{%- comment -%}
+Download/store buttons for every channel in _data/channels.yml.
+Usage: {% include download_buttons.html style="store" %} (hero)
+       {% include download_buttons.html style="cta" %}   (download section)
+Falls back to a contact button (site.contact_url) or a coming-soon chip.
+{%- endcomment -%}
+{%- include lang_vars.html -%}
+{%- assign has_channel = false -%}
+{%- for ch in site.data.channels -%}
+  {%- if site[ch.url_key] -%}{%- assign has_channel = true -%}{%- break -%}{%- endif -%}
+{%- endfor -%}
+{%- if has_channel -%}
+  {%- for ch in site.data.channels -%}
+    {%- assign url = site[ch.url_key] -%}
+    {%- unless url -%}{%- continue -%}{%- endunless -%}
+    {%- if include.style == 'cta' -%}
+    <a href="{{ url }}" class="cta-button {{ ch.cta_class }}" target="_blank" rel="noopener noreferrer">
+      <i class="{{ ch.icon }}"></i>
+      <span>{{ t.cta_buttons[ch.key] }}</span>
+    </a>
+    {%- else -%}
+    <a href="{{ url }}" class="store-button" target="_blank" rel="noopener noreferrer">
+      <i class="{{ ch.icon }}"></i>
+      <div class="store-text">
+        <small>{{ t.store_buttons[ch.key].small }}</small>
+        <span>{{ t.store_buttons[ch.key].label }}</span>
+      </div>
+    </a>
+    {%- endif -%}
+  {%- endfor -%}
+{%- elsif site.contact_url -%}
+  {%- if include.style == 'cta' -%}
+  <a href="{{ site.contact_url }}" class="cta-button">
+    <i class="fas fa-envelope"></i>
+    <span>{{ t.cta_buttons.contact }}</span>
+  </a>
+  {%- else -%}
+  <a href="{{ site.contact_url }}" class="store-button">
+    <i class="fas fa-envelope"></i>
+    <div class="store-text">
+      <small>{{ t.store_buttons.contact.small }}</small>
+      <span>{{ t.store_buttons.contact.label }}</span>
+    </div>
+  </a>
+  {%- endif -%}
+{%- else -%}
+  {%- if include.style == 'cta' -%}
+  <div class="cta-button is-coming-soon">
+    <i class="fas fa-clock"></i>
+    <span>{{ t.cta_buttons.coming_soon }}</span>
+  </div>
+  {%- else -%}
+  <div class="store-button is-coming-soon">
+    <i class="fas fa-clock"></i>
+    <div class="store-text">
+      <small>{{ t.store_buttons.coming_soon.small }}</small>
+      <span>{{ t.store_buttons.coming_soon.label }}</span>
+    </div>
+  </div>
+  {%- endif -%}
+{%- endif -%}

@@ -1,0 +1,11 @@
+{%- comment -%}
+Shared language variables. Liquid assigns escape includes, so including this
+file sets current_lang, t, and lang_root ("/" or "/<lang>/") for the caller.
+{%- endcomment -%}
+{%- assign current_lang = page.lang | default: site.languages[0] -%}
+{%- assign t = site.data.i18n[current_lang] -%}
+{%- if current_lang == site.languages[0] -%}
+  {%- assign lang_root = '/' -%}
+{%- else -%}
+  {%- assign lang_root = '/' | append: current_lang | append: '/' -%}
+{%- endif -%}

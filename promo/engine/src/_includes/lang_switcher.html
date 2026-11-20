@@ -1,0 +1,37 @@
+{%- comment -%}
+Language switcher. Renders one <a> per non-current language; pass
+show_current=true to also render the current language as a separator-joined
+<span> (footer style). Caller decides the link class.
+Usage: {% include lang_switcher.html class="navbar-item" %}
+Each page may declare lang_alt_urls in its front matter to override the
+auto-computed alternate URL, or lang_alt_root: true to point every other
+language at its own root — for pages with no per-language variant
+(e.g. /impressum/, the 404s).
+{%- endcomment -%}
+{%- include lang_vars.html -%}
+{%- for lang in site.languages -%}
+  {%- if include.show_current -%}
+    {%- unless forloop.first %}<span aria-hidden="true">·</span>{% endunless -%}
+  {%- endif -%}
+  {%- if lang == current_lang -%}
+    {%- if include.show_current -%}<span class="is-current">{{ site.data.i18n[lang].short }}</span>{%- endif -%}
+    {%- continue -%}
+  {%- endif -%}
+  {%- assign alt_url = nil -%}
+  {%- if page.lang_alt_urls and page.lang_alt_urls[lang] -%}
+    {%- assign alt_url = page.lang_alt_urls[lang] -%}
+  {%- elsif page.lang_alt_root -%}
+    {%- if lang == site.languages[0] -%}
+      {%- assign alt_url = '/' -%}
+    {%- else -%}
+      {%- assign alt_url = '/' | append: lang | append: '/' -%}
+    {%- endif -%}
+  {%- elsif lang == site.languages[0] -%}
+    {%- assign prefix = '/' | append: current_lang -%}
+    {%- assign alt_url = page.url | remove_first: prefix -%}
+    {%- if alt_url == '' or alt_url == nil -%}{%- assign alt_url = '/' -%}{%- endif -%}
+  {%- else -%}
+    {%- assign alt_url = '/' | append: lang | append: page.url -%}
+  {%- endif -%}
+  <a class="{{ include.class }}" href="{{ alt_url }}" hreflang="{{ lang }}" aria-label="{{ t.nav.language_switch_aria }}">{{ site.data.i18n[lang].short }}</a>
+{%- endfor -%}

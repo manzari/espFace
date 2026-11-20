@@ -45,6 +45,11 @@ docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/w -w /w/docs/site
 
 # hosted image: renderer + /flash/ + /docs/ (this is what Coolify deploys)
 docker build -f server/renderer/Dockerfile -t espface-renderer . && docker run --rm -p 8081:80 espface-renderer
+
+# landing page (promo/, its own Coolify resource): local preview with placeholder legal pages, then its screenshots
+docker build --build-arg ALLOW_PLACEHOLDER_LEGAL=1 -t espface-promo promo && docker run --rm -p 8888:80 espface-promo
+apps/mobile/scripts/promo-shots.sh                        # promo/images/phone-*.jpg
+web/scripts/promo-shots.sh                                # promo/images/web-*.jpg
 ```
 
 Notes on testing:
@@ -97,6 +102,8 @@ Firmware constraints:
 - `web/src/icons-paths.ts`
 - `docs/site/public/widgets/*`: run `web/scripts/widget-shots.sh`.
 - Mobile store screenshots and icons: `apps/mobile/scripts/{screenshots,icons}.sh`.
+- `promo/images/{phone,web}-*.jpg`: run the two `promo-shots.sh` scripts. `test/screenshots_test.dart` serves both the store set and the promo set.
+- `promo/engine/`: a copy of the apppage engine (`git.hauptstadt.monster/manzari/apppage`). Change the engine there and copy it again; the page's own content is everything else in `promo/`.
 
 The docs build also generates gitignored files: `reference/*.md` from `Face.h`, `Ui.h`, and the firmware README; `protocol/index.md`; and `guide/icons-list.md`.
 
@@ -104,6 +111,6 @@ The docs build also generates gitignored files: `reference/*.md` from `Face.h`, 
 
 - All component versions move in lockstep and **never contain the digit 4** (0.3.0 → 0.5.0, 1.3.x → 1.5.0; Android versionCodes too). `tools/release/check-versions.sh [vX.Y.Z]` checks `firmware/library.properties`, `library.json`, `ESPFACE_LIB_VERSION` in `Platform.h`, and `web/`, `tools/fake-device/`, `docs/site/` `package.json`. Tag `v*` triggers `.forgejo/workflows/release.yml`.
 - CI is Forgejo Actions (`.forgejo/workflows/ci.yml`). Releases are cut from the monorepo; `tools/release/split-library.sh` exports `firmware/` as the standalone Arduino library.
-- Commit subjects use the form `<component>: <summary>`. Components: `firmware`, `web`, `app`/`mobile`, `docs`, `fake-device`, `ci`, `release`.
+- Commit subjects use the form `<component>: <summary>`. Components: `firmware`, `web`, `app`/`mobile`, `docs`, `promo`, `fake-device`, `ci`, `release`.
 - Dependencies are pinned to exact versions. Mobile stays FOSS-only. For example, `flutter_blue_plus` is pinned at 1.36.8 (the last BSD release), and `usb_serial` is vendored under `third_party/` with a Gradle 9 build file.
 - `CHANGELOG.md` (Keep a Changelog) at the root, plus `firmware/CHANGELOG.md` for the library registries.

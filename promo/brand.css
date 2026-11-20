@@ -1,0 +1,150 @@
+/* Colours from the app icon (apps/mobile/assets/icon): blue tile, white panel glyph. */
+:root {
+  --blue-light: #3b8bff;
+  --blue: #1f62d6;
+  --blue-deep: #1a55c0;
+  --blue-night: #0f2f73;
+  --ink: #101b33;
+  --night: #0b1222;
+  --sky: #9cc4ff;
+}
+
+/* Below Bulma's desktop width the container has no gutter and its columns overflow the viewport. */
+@media screen and (max-width: 1023px) {
+  .hero-section .container,
+  .features-section .container,
+  .screenshots-section .container,
+  .webapp-section .container,
+  .cta-section .container,
+  .footer-section .container {
+    padding-left: 1.25rem;
+    padding-right: 1.25rem;
+  }
+}
+
+.navbar-brand .navbar-item:first-child {
+  display: inline-flex;
+  align-items: center;
+}
+
+.navbar-brand .navbar-item:first-child::before {
+  content: "";
+  width: 1.9rem;
+  height: 1.9rem;
+  margin-right: 0.65rem;
+  border-radius: 0.42rem;
+  background: url("../images/favicon.svg") center / contain no-repeat;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.35);
+}
+
+.hero-section {
+  background: linear-gradient(135deg, var(--blue-deep) 0%, var(--blue-night) 100%);
+}
+
+.hero-section::before {
+  background: radial-gradient(ellipse, rgba(59, 139, 255, 0.55) 0%, transparent 68%);
+}
+
+.hero-section::after {
+  background: radial-gradient(ellipse, rgba(4, 12, 36, 0.3) 0%, transparent 70%);
+}
+
+/* Opaque, so the browser mockup behind the second phone does not show through it. */
+.phone-mockup.secondary {
+  opacity: 1;
+}
+
+/* The app comes first; the docs link is the quieter second button. */
+.store-button[href*="fdroid"],
+.cta-button.is-fdroid {
+  order: -1;
+}
+
+.store-button[href*="fdroid"] {
+  background: #ffffff;
+  border-color: transparent;
+  color: var(--blue-night);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.store-button[href*="fdroid"]:hover {
+  background: #eaf2ff;
+  border-color: transparent;
+  color: var(--blue-night);
+}
+
+.section-tag {
+  background-image: linear-gradient(135deg, var(--blue) 0%, var(--blue-night) 100%);
+}
+
+.section-title,
+.feature-box h3 {
+  color: var(--ink);
+}
+
+.feature-icon {
+  background: linear-gradient(180deg, var(--blue-light) 0%, var(--blue) 100%);
+  box-shadow: 0 10px 30px -10px rgba(31, 98, 214, 0.6);
+}
+
+.cta-section {
+  background: linear-gradient(135deg, #131f3d 0%, var(--night) 100%);
+}
+
+.cta-section::before {
+  background: radial-gradient(ellipse, rgba(59, 139, 255, 0.22) 0%, transparent 60%);
+}
+
+.cta-button.is-fdroid {
+  background: linear-gradient(180deg, var(--blue-light) 0%, var(--blue) 100%);
+  color: #ffffff;
+}
+
+.cta-button.is-fdroid:hover {
+  box-shadow: 0 15px 40px rgba(59, 139, 255, 0.35);
+  color: #ffffff;
+}
+
+.cta-button.is-web {
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+}
+
+.cta-button.is-web:hover {
+  background: rgba(255, 255, 255, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.4);
+  color: #ffffff;
+}
+
+.footer-section {
+  background: #070c18;
+}
+
+.legal-content a {
+  color: var(--blue);
+}
+
+.legal-content a:hover {
+  color: var(--blue-night);
+}
+
+.legal-content .callout,
+.legal-content .art21 {
+  border-left-color: var(--blue);
+  background: #f1f6ff;
+}
+
+.button.is-primary,
+.button.is-primary:hover,
+.button.is-primary:focus {
+  background-color: var(--blue-deep);
+  color: #ffffff;
+}
+
+.store-button:focus-visible,
+.cta-button:focus-visible {
+  outline: 3px solid var(--sky);
+  outline-offset: 3px;
+}

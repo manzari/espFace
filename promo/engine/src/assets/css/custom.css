@@ -1,0 +1,975 @@
+/* ============================================
+   App Landing Page - Modern Design
+   ============================================ */
+
+/* Base & Typography */
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  scroll-behavior: smooth;
+  overflow-x: hidden;
+}
+
+body {
+  background: #ffffff;
+  color: #1a1a2e;
+  line-height: 1.6;
+}
+
+/* ============================================
+   Navbar
+   ============================================ */
+.navbar {
+  background: transparent !important;
+  position: fixed;
+  width: 100%;
+  top: 0;
+  left: 0;
+  z-index: 1000;
+  padding: 1rem 0;
+  transition: all 0.3s ease;
+}
+
+.navbar.is-scrolled {
+  background: rgba(255, 255, 255, 0.95) !important;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: 0 2px 20px rgba(0, 0, 0, 0.08);
+  padding: 0.5rem 0;
+}
+
+.navbar.is-scrolled .navbar-item,
+.navbar.is-scrolled .navbar-link {
+  color: #1a1a2e !important;
+}
+
+.navbar.is-scrolled .navbar-burger span {
+  background-color: #1a1a2e !important;
+}
+
+.navbar-brand .navbar-item {
+  font-weight: 700;
+  font-size: 1.4rem;
+  letter-spacing: -0.02em;
+}
+
+.navbar-item, .navbar-link {
+  color: #ffffff !important;
+  font-weight: 500;
+  font-size: 0.95rem;
+  padding: 0.5rem 1.25rem;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.navbar-item:hover, .navbar-link:hover {
+  background: rgba(255, 255, 255, 0.15) !important;
+}
+
+.navbar.is-scrolled .navbar-item:hover {
+  background: rgba(0, 0, 0, 0.05) !important;
+}
+
+.navbar-burger span {
+  background-color: #ffffff !important;
+  height: 2px;
+  width: 20px;
+}
+
+.navbar-menu {
+  background: transparent !important;
+}
+
+@media screen and (max-width: 1023px) {
+  .navbar-menu {
+    background: #ffffff !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    border-radius: 0 0 16px 16px;
+    padding: 1rem;
+  }
+  .navbar-menu .navbar-item {
+    color: #1a1a2e !important;
+  }
+}
+
+/* ============================================
+   Hero Section
+   ============================================ */
+.hero-section {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f64f59 100%);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  padding: 8rem 0 4rem;
+}
+
+.hero-section::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -20%;
+  width: 80%;
+  height: 150%;
+  background: radial-gradient(ellipse, rgba(255,255,255,0.1) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.hero-section::after {
+  content: '';
+  position: absolute;
+  bottom: -30%;
+  left: -20%;
+  width: 60%;
+  height: 100%;
+  background: radial-gradient(ellipse, rgba(0,0,0,0.1) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.hero-content {
+  position: relative;
+  z-index: 10;
+  width: 100%;
+}
+
+.hero-title {
+  font-size: clamp(2.5rem, 6vw, 4rem);
+  font-weight: 800;
+  color: #ffffff;
+  line-height: 1.1;
+  margin-bottom: 1.5rem;
+  letter-spacing: -0.03em;
+}
+
+.hero-subtitle {
+  font-size: clamp(1.1rem, 2vw, 1.35rem);
+  color: rgba(255, 255, 255, 0.9);
+  line-height: 1.7;
+  margin-bottom: 2.5rem;
+  max-width: 480px;
+  font-weight: 400;
+}
+
+/* Store Buttons */
+.store-buttons {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.store-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.875rem;
+  background: rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 14px;
+  padding: 0.875rem 1.5rem;
+  color: #ffffff;
+  text-decoration: none;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.store-button:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.4);
+  transform: translateY(-3px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
+  color: #ffffff;
+}
+
+.store-button i {
+  font-size: 2rem;
+}
+
+.store-button .store-text {
+  text-align: left;
+}
+
+.store-button .store-text small {
+  display: block;
+  font-size: 0.7rem;
+  opacity: 0.85;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 500;
+}
+
+.store-button .store-text span {
+  display: block;
+  font-size: 1.15rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.store-button.is-coming-soon {
+  cursor: default;
+  opacity: 0.85;
+}
+
+.store-button.is-coming-soon:hover {
+  transform: none;
+  box-shadow: none;
+  background: rgba(0, 0, 0, 0.25);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Phone Mockups */
+.phone-mockup-container {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  padding: 2rem 0;
+}
+
+.phone-mockup {
+  position: relative;
+  width: 270px;
+}
+
+.phone-mockup .phone-frame {
+  position: relative;
+  background: #1a1a1a;
+  border-radius: 36px;
+  padding: 10px;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.1),
+    0 20px 60px rgba(0, 0, 0, 0.4),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+/* Power button */
+.phone-mockup .phone-frame::after {
+  content: '';
+  position: absolute;
+  right: -2px;
+  top: 100px;
+  width: 3px;
+  height: 40px;
+  background: #2a2a2a;
+  border-radius: 0 2px 2px 0;
+}
+
+.phone-mockup.secondary {
+  width: 240px;
+  margin-left: -50px;
+  z-index: -1;
+  transform: rotate(-8deg) translateY(20px);
+  opacity: 0.85;
+}
+
+/* Hero browser mockup — sits behind the phones to show the web form factor */
+.hero-browser {
+  position: absolute;
+  right: 0;
+  top: 1rem;
+  width: 360px;
+  z-index: -2;
+  transform: rotate(4deg);
+  opacity: 0.9;
+}
+
+.phone-screen {
+  width: 100%;
+  background: #000;
+  border-radius: 26px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.phone-screen img {
+  width: 100%;
+  display: block;
+}
+
+.screenshot-placeholder {
+  color: #adb5bd;
+  text-align: center;
+  padding: 2rem;
+}
+
+.screenshot-placeholder i {
+  font-size: 3.5rem;
+  margin-bottom: 1rem;
+  opacity: 0.5;
+}
+
+.screenshot-placeholder p {
+  font-size: 0.9rem;
+  font-weight: 500;
+  opacity: 0.7;
+}
+
+/* ============================================
+   Features Section
+   ============================================ */
+.features-section {
+  padding: 7rem 0;
+  background: #ffffff;
+}
+
+.section-tag {
+  display: inline-block;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 1rem;
+}
+
+.section-title {
+  font-size: clamp(2rem, 4vw, 2.75rem);
+  font-weight: 700;
+  color: #1a1a2e;
+  margin-bottom: 1rem;
+  letter-spacing: -0.02em;
+}
+
+.section-subtitle {
+  font-size: 1.15rem;
+  color: #6c757d;
+  max-width: 550px;
+  margin: 0 auto 4rem;
+  line-height: 1.7;
+}
+
+.feature-box {
+  text-align: center;
+  padding: 2.5rem 2rem;
+  border-radius: 20px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid transparent;
+}
+
+.feature-box:hover {
+  background: #f8f9fa;
+  border-color: #e9ecef;
+  transform: translateY(-5px);
+}
+
+.feature-icon {
+  width: 72px;
+  height: 72px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 1.5rem;
+  box-shadow: 0 10px 30px -10px rgba(102, 126, 234, 0.5);
+}
+
+.feature-icon i {
+  font-size: 1.75rem;
+  color: #ffffff;
+}
+
+.feature-box h3 {
+  font-size: 1.2rem;
+  font-weight: 700;
+  margin-bottom: 0.75rem;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+
+.feature-box p {
+  color: #6c757d;
+  line-height: 1.65;
+  font-size: 0.95rem;
+}
+
+/* ============================================
+   Screenshots Section
+   ============================================ */
+.screenshots-section {
+  padding: 7rem 0;
+  background: linear-gradient(180deg, #f8f9fa 0%, #ffffff 100%);
+}
+
+.screenshot-gallery {
+  display: flex;
+  gap: 2rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  padding: 2rem 0;
+}
+
+.screenshot-item {
+  width: 200px;
+  height: auto;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  flex-shrink: 0;
+}
+
+.screenshot-item:hover {
+  transform: translateY(-12px) scale(1.02);
+}
+
+.screenshot-item .phone-frame {
+  position: relative;
+  background: #1a1a1a;
+  border-radius: 28px;
+  padding: 8px;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.1),
+    0 15px 50px rgba(0, 0, 0, 0.15);
+}
+
+.screenshot-item .phone-screen {
+  background: #000;
+  border-radius: 20px;
+  overflow: hidden;
+  display: block;
+  position: static;
+}
+
+.screenshot-item .phone-screen img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* ============================================
+   Web App Section
+   ============================================ */
+.webapp-section {
+  padding: 7rem 0;
+  background: #ffffff;
+}
+
+.webapp-gallery {
+  display: flex;
+  gap: 2rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  padding: 2rem 0;
+}
+
+/* Shared browser frame (hero + gallery) */
+.browser-mockup,
+.browser-item {
+  background: #1a1a1a;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.1),
+    0 15px 50px rgba(0, 0, 0, 0.15);
+}
+
+.browser-item {
+  width: 420px;
+  max-width: 100%;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.browser-item:hover {
+  transform: translateY(-12px) scale(1.02);
+}
+
+.browser-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 12px;
+  background: #2a2a2a;
+}
+
+.browser-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #555;
+}
+
+.browser-screen {
+  background: #000;
+  overflow: hidden;
+  aspect-ratio: 16 / 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.browser-screen img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top;
+  display: block;
+}
+
+/* ============================================
+   CTA Section
+   ============================================ */
+.cta-section {
+  padding: 7rem 0;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  position: relative;
+  overflow: hidden;
+}
+
+.cta-section::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -30%;
+  width: 80%;
+  height: 150%;
+  background: radial-gradient(ellipse, rgba(102, 126, 234, 0.15) 0%, transparent 60%);
+  pointer-events: none;
+}
+
+.cta-content {
+  position: relative;
+  z-index: 10;
+}
+
+.cta-title {
+  font-size: clamp(2rem, 4vw, 2.75rem);
+  font-weight: 700;
+  color: #ffffff;
+  margin-bottom: 1rem;
+  letter-spacing: -0.02em;
+}
+
+.cta-subtitle {
+  font-size: 1.15rem;
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 2.5rem;
+  max-width: 500px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.cta-buttons {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.cta-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  border-radius: 14px;
+  padding: 1rem 2rem;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 1rem;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border: none;
+}
+
+.cta-button i {
+  font-size: 1.5rem;
+}
+
+.cta-button.is-web {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #ffffff;
+}
+
+.cta-button.is-web:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 15px 40px rgba(102, 126, 234, 0.4);
+  color: #ffffff;
+}
+
+.cta-button.is-ios {
+  background: #ffffff;
+  color: #1a1a2e;
+}
+
+.cta-button.is-ios:hover {
+  background: #f8f9fa;
+  transform: translateY(-3px);
+  box-shadow: 0 15px 40px rgba(255, 255, 255, 0.2);
+  color: #1a1a2e;
+}
+
+.cta-button.is-android {
+  background: linear-gradient(135deg, #34a853 0%, #0f9d58 100%);
+  color: #ffffff;
+}
+
+.cta-button.is-android:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 15px 40px rgba(52, 168, 83, 0.4);
+  color: #ffffff;
+}
+
+.cta-button.is-fdroid {
+  background: linear-gradient(135deg, #1976D2 0%, #0D47A1 100%);
+  color: #ffffff;
+}
+
+.cta-button.is-fdroid:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 15px 40px rgba(25, 118, 210, 0.4);
+  color: #ffffff;
+}
+
+.cta-button.is-coming-soon {
+  background: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.8);
+  cursor: default;
+}
+
+.cta-button.is-coming-soon:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+/* ============================================
+   Footer
+   ============================================ */
+.footer-section {
+  background: #0d0d0d;
+  padding: 4rem 0 2rem;
+}
+
+.footer-logo {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #ffffff;
+  margin-bottom: 0.75rem;
+  letter-spacing: -0.02em;
+}
+
+.footer-text {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.95rem;
+}
+
+.footer-links {
+  display: flex;
+  gap: 2rem;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.footer-links a {
+  color: rgba(255, 255, 255, 0.6);
+  text-decoration: none;
+  font-size: 0.95rem;
+  font-weight: 500;
+  transition: color 0.2s ease;
+}
+
+.footer-links a:hover {
+  color: #ffffff;
+}
+
+.footer-lang {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  margin-top: 0.75rem;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.footer-lang a {
+  color: rgba(255, 255, 255, 0.55);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.footer-lang a:hover {
+  color: #ffffff;
+}
+
+.footer-lang .is-current {
+  color: rgba(255, 255, 255, 0.85);
+  font-weight: 600;
+}
+
+.navbar-item.navbar-lang {
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  opacity: 0.75;
+  transition: opacity 0.2s ease;
+}
+
+.navbar-item.navbar-lang:hover {
+  opacity: 1;
+  background: transparent;
+}
+
+.footer-bottom {
+  margin-top: 3rem;
+  padding-top: 2rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  text-align: center;
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 0.875rem;
+}
+
+/* ============================================
+   Responsive
+   ============================================ */
+@media screen and (max-width: 768px) {
+  .hero-section {
+    padding: 7rem 0 3rem;
+    text-align: center;
+  }
+
+  .hero-subtitle {
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .store-buttons {
+    justify-content: center;
+  }
+
+  .phone-mockup {
+    width: 230px;
+  }
+
+  .phone-mockup .phone-frame {
+    border-radius: 30px;
+    padding: 8px;
+  }
+
+  .phone-mockup .phone-screen {
+    border-radius: 22px;
+  }
+
+  .phone-mockup.secondary {
+    display: none;
+  }
+
+  .hero-browser {
+    display: none;
+  }
+
+  .browser-item {
+    width: 100%;
+  }
+
+  .screenshot-item {
+    width: 160px;
+  }
+
+  .screenshot-item .phone-frame {
+    border-radius: 24px;
+    padding: 6px;
+  }
+
+  .screenshot-item .phone-screen {
+    border-radius: 18px;
+  }
+
+  .footer-links {
+    justify-content: center;
+    margin-top: 2rem;
+    gap: 1.5rem;
+  }
+}
+
+@media screen and (max-width: 480px) {
+  .store-button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .screenshot-gallery {
+    gap: 1rem;
+  }
+
+  .screenshot-item {
+    width: 140px;
+  }
+
+  .screenshot-item .phone-frame {
+    border-radius: 20px;
+    padding: 5px;
+  }
+
+  .screenshot-item .phone-screen {
+    border-radius: 15px;
+  }
+
+  .cta-button {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* ============================================
+   Legal Pages
+   ============================================ */
+.page-content {
+  padding-top: 8rem;
+  padding-bottom: 4rem;
+  min-height: calc(100vh - 200px);
+}
+
+.page-title {
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 700;
+  color: #1a1a2e;
+  margin-bottom: 0.5rem;
+  letter-spacing: -0.02em;
+}
+
+.legal-content {
+  color: #4a4a4a;
+  line-height: 1.8;
+}
+
+.legal-content h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1a1a2e;
+  margin-top: 2.5rem;
+  margin-bottom: 1rem;
+}
+
+.legal-content h3 {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #1a1a2e;
+  margin-top: 2rem;
+  margin-bottom: 0.75rem;
+}
+
+.legal-content p {
+  margin-bottom: 1rem;
+}
+
+.legal-content ul, .legal-content ol {
+  margin-bottom: 1rem;
+  margin-left: 1.5rem;
+}
+
+.legal-content li {
+  margin-bottom: 0.5rem;
+}
+
+.legal-content a {
+  color: #667eea;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.legal-content a:hover {
+  color: #764ba2;
+  text-decoration: underline;
+}
+
+.legal-content strong {
+  color: #1a1a2e;
+}
+
+/* -----------------------------------------------------------------------------
+   engrossify legal markdown (rendered at build time; see bin/render-legal.sh)
+   The markdown may embed HTML with semantic classes we restyle to match the site.
+   ----------------------------------------------------------------------------- */
+.legal-content article.doc {
+  /* the fragment already sits inside .content.legal-content — strip its own box */
+  margin: 0;
+  padding: 0;
+  max-width: none;
+}
+
+.legal-content table {
+  width: 100%;
+  margin-bottom: 1.5rem;
+  border-collapse: collapse;
+}
+
+.legal-content th,
+.legal-content td {
+  border: 1px solid #e5e5ef;
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.legal-content th {
+  background: #f5f5fb;
+  color: #1a1a2e;
+}
+
+/* Art. 21 GDPR "right to object" callout */
+.legal-content .callout,
+.legal-content .art21 {
+  border-left: 4px solid #667eea;
+  background: #f5f5fb;
+  padding: 1rem 1.25rem;
+  margin: 1.5rem 0;
+  border-radius: 0 6px 6px 0;
+}
+
+/* "Rechtsgrundlage / Legal basis" line under a clause */
+.legal-content .legal-basis {
+  font-size: 0.9rem;
+  color: #6b6b7b;
+}
+
+/* Deduped attribution footer — keep it (license requirement), make it muted */
+.legal-content .attribution,
+.legal-content article.doc > footer {
+  margin-top: 2.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e5e5ef;
+  font-size: 0.85rem;
+  color: #8a8a9a;
+}
+
+/* 404 page */
+.error-page {
+  padding: 4rem 0;
+}
+
+.error-code {
+  font-size: 6rem;
+  margin-bottom: 1rem;
+}
+
+.error-page .error-subtitle {
+  margin-bottom: 2rem;
+}
+
+/* Fixed navbar on legal pages */
+.navbar.is-fixed-top {
+  background: rgba(255, 255, 255, 0.98) !important;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+/* Dark navbar items (for pages with white background) */
+.navbar-item-dark,
+.navbar-item-dark:hover {
+  color: #1a1a2e !important;
+}
+
+.navbar-item-dark:hover {
+  background: rgba(0, 0, 0, 0.05) !important;
+}
+
+.navbar-burger-dark span {
+  background-color: #1a1a2e !important;
+}
