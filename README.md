@@ -10,14 +10,11 @@
   No web code, no app code, no cloud.
 </p>
 
-<p align="center">
-  <a href="https://espface.manzari.dev">Website</a> ·
-  <a href="https://espface.manzari.dev/docs/guide/getting-started.html">Getting started</a> ·
-  <a href="https://espface.manzari.dev/docs/guide/widgets.html">Widget catalogue</a> ·
-  <a href="https://espface.manzari.dev/docs/reference/espface.html">API reference</a> ·
-  <a href="protocol/PROTOCOL.md">Protocol</a> ·
-  <a href="CHANGELOG.md">Changelog</a>
-</p>
+<div align="center">
+
+[Website](https://espface.manzari.dev) · [Getting started](https://espface.manzari.dev/docs/guide/getting-started.html) · [Widget catalogue](https://espface.manzari.dev/docs/guide/widgets.html) · [API reference](https://espface.manzari.dev/docs/reference/espface.html) · [Protocol](protocol/PROTOCOL.md) · [Changelog](CHANGELOG.md)
+
+</div>
 
 <p align="center">
   <img src="promo/images/phone-device-dark.jpg" width="250" alt="A boiler controller in the espFace app: temperature gauge, history chart, tank level and pressure">
